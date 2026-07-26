@@ -346,8 +346,70 @@ const ebookContoh = <Ebook>[
 
 /// Sengaja disetel tersisa 5 hari supaya keadaan "akan berakhir" — yang paling
 /// mudah dilupakan saat membangun — ikut terlihat sejak layar pertama dibuka.
-final langgananContoh = Langganan(
+///
+/// Bukan `const` dan bukan `final`: pembayaran demo benar-benar
+/// memperpanjangnya, jadi alur bayar bisa ditelusuri sampai ujung dan Beranda
+/// ikut berubah. Alur pembayaran yang berhenti di layar "berhasil" tanpa
+/// mengubah apa pun tidak pernah menguji bagian yang paling gampang salah.
+Langganan langgananContoh = _langgananAwal();
+
+Langganan _langgananAwal() => Langganan(
   durasi: DurasiPaket.bulanan,
   tanggalMulai: DateTime.now().subtract(const Duration(days: 25)),
   tanggalBerakhir: DateTime.now().add(const Duration(days: 5)),
 );
+
+/// Riwayat tagihan langganan. Bertambah saat pembayaran demo diselesaikan.
+List<Tagihan> tagihanContoh = _tagihanAwal();
+
+List<Tagihan> _tagihanAwal() {
+  final kini = DateTime.now();
+  return [
+    Tagihan(
+      id: 'inv3',
+      nomorInvoice: 'INV/2026/0031',
+      durasi: DurasiPaket.bulanan,
+      nominal: DurasiPaket.bulanan.harga,
+      saluran: SaluranBayar.qris,
+      status: StatusBayar.lunas,
+      dibuat: kini.subtract(const Duration(days: 25)),
+      batasBayar: kini.subtract(const Duration(days: 24)),
+      berlakuSampai: kini.add(const Duration(days: 5)),
+    ),
+    Tagihan(
+      id: 'inv2',
+      nomorInvoice: 'INV/2026/0018',
+      durasi: DurasiPaket.bulanan,
+      nominal: DurasiPaket.bulanan.harga,
+      saluran: SaluranBayar.vaBca,
+      status: StatusBayar.lunas,
+      dibuat: kini.subtract(const Duration(days: 56)),
+      batasBayar: kini.subtract(const Duration(days: 55)),
+      berlakuSampai: kini.subtract(const Duration(days: 25)),
+      kodeBayar: '8808 0812 3456 7890',
+    ),
+    // Satu tagihan gagal, sengaja. Riwayat yang seluruhnya hijau tidak pernah
+    // menguji apakah keadaan buruknya sudah dirancang.
+    Tagihan(
+      id: 'inv1',
+      nomorInvoice: 'INV/2026/0017',
+      durasi: DurasiPaket.bulanan,
+      nominal: DurasiPaket.bulanan.harga,
+      saluran: SaluranBayar.vaBca,
+      status: StatusBayar.kedaluwarsa,
+      dibuat: kini.subtract(const Duration(days: 57)),
+      batasBayar: kini.subtract(const Duration(days: 56)),
+      berlakuSampai: kini.subtract(const Duration(days: 26)),
+      kodeBayar: '8808 0812 3456 7890',
+    ),
+  ];
+}
+
+/// Mengembalikan seluruh data contoh ke keadaan awal.
+///
+/// Dipakai tes: pembayaran demo mengubah keadaan global, dan tanpa ini tes
+/// berikutnya mewarisi langganan yang sudah diperpanjang tes sebelumnya.
+void aturUlangContoh() {
+  langgananContoh = _langgananAwal();
+  tagihanContoh = _tagihanAwal();
+}

@@ -140,7 +140,26 @@ class Ebook {
 // ---------------------------------------------------------------------------
 
 /// PRD §4.1. Satu paket, beda durasi — fiturnya identik di semua durasi.
+/// Yang membedakan hanya lama berlangganan dan harga.
 enum DurasiPaket { ujiCoba, bulanan, semesteran, tahunan }
+
+/// Harga paket. **Satu tempat, sengaja** — PRD §4.1 menandainya sebagai angka
+/// contoh yang nanti bisa diubah dari halaman Pengaturan panel admin. Kalau ia
+/// tersebar ke beberapa berkas, perubahan harga akan selalu menyisakan satu
+/// tempat yang terlewat.
+const hargaPaket = <DurasiPaket, int>{
+  DurasiPaket.bulanan: 99000,
+  DurasiPaket.semesteran: 499000,
+  DurasiPaket.tahunan: 899000,
+};
+
+/// Yang boleh dibeli. Uji coba tidak ada di sini — ia diberikan otomatis saat
+/// daftar, bukan dijual.
+const paketDijual = <DurasiPaket>[
+  DurasiPaket.bulanan,
+  DurasiPaket.semesteran,
+  DurasiPaket.tahunan,
+];
 
 extension LabelDurasi on DurasiPaket {
   String get label => switch (this) {
@@ -149,6 +168,47 @@ extension LabelDurasi on DurasiPaket {
     DurasiPaket.semesteran => '6 Bulan',
     DurasiPaket.tahunan => '12 Bulan',
   };
+
+  int get bulan => switch (this) {
+    DurasiPaket.ujiCoba => 0,
+    DurasiPaket.bulanan => 1,
+    DurasiPaket.semesteran => 6,
+    DurasiPaket.tahunan => 12,
+  };
+
+  int get harga => hargaPaket[this] ?? 0;
+
+  int get perBulan => bulan == 0 ? 0 : harga ~/ bulan;
+
+  /// Hemat dibanding membeli bulanan berulang-ulang.
+  ///
+  /// **Dihitung, bukan angka pemasaran.** Kalau harganya diubah nanti, angka
+  /// hematnya ikut berubah sendiri — klaim diskon yang ditulis tangan adalah
+  /// klaim yang cepat atau lambat jadi bohong.
+  int get hematPersen {
+    final penuh = hargaPaket[DurasiPaket.bulanan]! * bulan;
+    if (bulan <= 1 || penuh == 0) return 0;
+    return ((penuh - harga) * 100 / penuh).round();
+  }
+}
+
+/// Menambah bulan dengan menjepit tanggal ke hari terakhir bulan tujuan.
+///
+/// Tanpa penjepitan, 31 Januari + 1 bulan menghasilkan 3 Maret di Dart — dan
+/// pelanggan yang membayar tanggal 31 akan kehilangan dua hari tanpa pernah
+/// tahu kenapa.
+DateTime tambahBulan(DateTime d, int bulan) {
+  final total = d.month - 1 + bulan;
+  final tahun = d.year + total ~/ 12;
+  final bln = total % 12 + 1;
+  final hariMaks = DateTime(tahun, bln + 1, 0).day;
+  return DateTime(
+    tahun,
+    bln,
+    d.day > hariMaks ? hariMaks : d.day,
+    d.hour,
+    d.minute,
+  );
 }
 
 enum StatusLangganan { ujiCoba, aktif, akanBerakhir, kedaluwarsa, nonaktif }
@@ -196,6 +256,130 @@ class Langganan {
   bool get bolehUnduhResep =>
       status != StatusLangganan.kedaluwarsa &&
       status != StatusLangganan.nonaktif;
+
+  /// PRD §4.4 — **sisa hari tidak hangus.**
+  ///
+  /// Perpanjangan menyambung dari [tanggalBerakhir] selama langganan masih
+  /// berjalan, dan baru dihitung dari hari ini kalau sudah kedaluwarsa.
+  /// Aturan ini wajib ditulis eksplisit di layar pembayaran: tanpa kalimat
+  /// itu, orang menunda perpanjangan sampai hari terakhir karena mengira
+  /// membayar lebih awal berarti membuang sisa harinya.
+  DateTime berakhirSetelahPerpanjang(DurasiPaket durasi, {DateTime? sekarang}) {
+    final kini = sekarang ?? DateTime.now();
+    final dasar = tanggalBerakhir.isAfter(kini) ? tanggalBerakhir : kini;
+    return tambahBulan(dasar, durasi.bulan);
+  }
+
+  /// True kalau perpanjangan menyambung sisa hari, bukan mulai dari nol.
+  bool get menyambung => tanggalBerakhir.isAfter(DateTime.now());
+}
+
+// ---------------------------------------------------------------------------
+// Pembayaran langganan (PRD §13 fase 3 — Midtrans)
+// ---------------------------------------------------------------------------
+
+/// PRD M6 F6.2.
+enum StatusBayar { menunggu, lunas, gagal, kedaluwarsa }
+
+extension LabelStatusBayar on StatusBayar {
+  String get label => switch (this) {
+    StatusBayar.menunggu => 'Menunggu pembayaran',
+    StatusBayar.lunas => 'Lunas',
+    StatusBayar.gagal => 'Gagal',
+    StatusBayar.kedaluwarsa => 'Kedaluwarsa',
+  };
+}
+
+/// Saluran pembayaran Midtrans yang akan dipakai.
+///
+/// Daftarnya sengaja pendek. Midtrans menyediakan belasan saluran, tapi
+/// halaman yang menawarkan belasan pilihan membuat orang berhenti memilih —
+/// dan tiga saluran ini menutupi hampir semua pemilik toko di Indonesia.
+enum SaluranBayar { qris, vaBca, vaMandiri, gopay }
+
+enum GrupSaluran { qris, virtualAccount, eWallet }
+
+extension RinciSaluran on SaluranBayar {
+  String get label => switch (this) {
+    SaluranBayar.qris => 'QRIS',
+    SaluranBayar.vaBca => 'Virtual Account BCA',
+    SaluranBayar.vaMandiri => 'Virtual Account Mandiri',
+    SaluranBayar.gopay => 'GoPay',
+  };
+
+  String get keterangan => switch (this) {
+    SaluranBayar.qris => 'Pindai dari aplikasi bank atau e-wallet mana pun',
+    SaluranBayar.vaBca => 'Transfer ke nomor VA lewat m-BCA atau ATM',
+    SaluranBayar.vaMandiri => 'Transfer ke nomor VA lewat Livin atau ATM',
+    SaluranBayar.gopay => 'Bayar langsung dari saldo GoPay',
+  };
+
+  GrupSaluran get grup => switch (this) {
+    SaluranBayar.qris => GrupSaluran.qris,
+    SaluranBayar.vaBca || SaluranBayar.vaMandiri => GrupSaluran.virtualAccount,
+    SaluranBayar.gopay => GrupSaluran.eWallet,
+  };
+
+  /// True kalau saluran ini memberi nomor yang harus disalin pelanggan.
+  bool get pakaiKode => grup == GrupSaluran.virtualAccount;
+}
+
+/// Satu tagihan langganan. Bentuknya mengikuti PRD §6 `Pembayaran`.
+class Tagihan {
+  const Tagihan({
+    required this.id,
+    required this.nomorInvoice,
+    required this.durasi,
+    required this.nominal,
+    required this.saluran,
+    required this.status,
+    required this.dibuat,
+    required this.batasBayar,
+    required this.berlakuSampai,
+    this.kodeBayar,
+  });
+
+  final String id;
+  final String nomorInvoice;
+  final DurasiPaket durasi;
+  final int nominal;
+  final SaluranBayar saluran;
+  final StatusBayar status;
+  final DateTime dibuat;
+
+  /// Midtrans menutup tagihan yang tidak dibayar. 24 jam adalah bawaan yang
+  /// lazim, dan cukup longgar untuk orang yang membayar lewat ATM besok pagi.
+  final DateTime batasBayar;
+
+  /// Tanggal berakhir langganan SETELAH tagihan ini lunas. Dihitung saat
+  /// tagihan dibuat, bukan saat dibayar — supaya angka yang dijanjikan di
+  /// layar pembayaran sama persis dengan yang didapat.
+  final DateTime berlakuSampai;
+
+  /// Nomor Virtual Account. Null untuk saluran yang tidak memakainya.
+  final String? kodeBayar;
+
+  Duration get sisaWaktu => batasBayar.difference(DateTime.now());
+  bool get lewatBatas => sisaWaktu.isNegative;
+
+  /// Status yang sudah memperhitungkan batas waktu. Tagihan yang lewat batas
+  /// tapi masih tercatat "menunggu" adalah tagihan yang berbohong.
+  StatusBayar get statusKini => status == StatusBayar.menunggu && lewatBatas
+      ? StatusBayar.kedaluwarsa
+      : status;
+
+  Tagihan salin({StatusBayar? status}) => Tagihan(
+    id: id,
+    nomorInvoice: nomorInvoice,
+    durasi: durasi,
+    nominal: nominal,
+    saluran: saluran,
+    status: status ?? this.status,
+    dibuat: dibuat,
+    batasBayar: batasBayar,
+    berlakuSampai: berlakuSampai,
+    kodeBayar: kodeBayar,
+  );
 }
 
 // ---------------------------------------------------------------------------

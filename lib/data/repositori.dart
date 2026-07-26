@@ -56,6 +56,19 @@ enum ModeUji { normal, memuat, kosong, galat }
 
 final modeUji = ValueNotifier<ModeUji>(ModeUji.normal);
 
+/// Bertambah setiap kali lapisan ini berubah dari dalam aplikasi — untuk
+/// sekarang hanya saat pembayaran lunas.
+///
+/// [Bingkai] mendengarkannya, jadi setiap layar yang sedang terbuka memuat
+/// ulang dirinya sendiri. Tanpa ini, layar Akun masih menampilkan "5 hari
+/// lagi" tepat setelah pembayaran berhasil — dan tidak ada kabar buruk yang
+/// lebih merusak kepercayaan daripada aplikasi yang tidak mengakui uang yang
+/// baru saja dibayarkan.
+///
+/// Ini juga persis tempat state management masuk nanti. Satu notifier untuk
+/// seluruh aplikasi jelas kasar; yang penting sekarang, seamnya cuma satu.
+final revisiData = ValueNotifier<int>(0);
+
 /// Jeda buatan 300–800 ms, sama seperti panel web. Cukup untuk melihat rangka
 /// pemuatan, cukup pendek untuk tidak menjengkelkan saat dipakai.
 Future<void> _jeda() =>
@@ -194,6 +207,81 @@ abstract final class Repositori {
       produkMenipis: 0,
     ),
   );
+
+  // -------------------------------------------------------------------------
+  // Pembayaran langganan
+  //
+  // Saat Midtrans disambung, ketiga fungsi ini yang berubah isinya:
+  // `buatTagihan` memanggil Snap/Core API, `periksaTagihan` membaca status
+  // transaksi, dan status sungguhannya datang lewat webhook — bukan lewat
+  // pengguna menekan "Saya sudah bayar". Tanda tangannya tidak berubah.
+  // -------------------------------------------------------------------------
+
+  static Future<List<Tagihan>> riwayatTagihan() =>
+      _kirim(() => tagihanContoh, kalauKosong: const []);
+
+  /// Membuat tagihan baru berstatus menunggu.
+  ///
+  /// Nomor VA-nya dibangkitkan di sini hanya untuk tahap tampilan. Nanti ia
+  /// datang dari Midtrans, dan **tidak boleh** dibangkitkan di sisi aplikasi —
+  /// nomor VA yang dikarang klien adalah nomor yang tidak akan pernah dibayar.
+  ///
+  /// Sengaja tidak lewat `_kirim`: membuat tagihan tidak punya bentuk
+  /// "kosong" yang masuk akal, dan memaksakan satu ke sana justru
+  /// menyembunyikan kesalahan.
+  static Future<Tagihan> buatTagihan({
+    required DurasiPaket durasi,
+    required SaluranBayar saluran,
+  }) async {
+    await _jeda();
+    if (modeUji.value == ModeUji.galat) {
+      throw const GagalMuat('Tidak bisa membuat tagihan. Coba lagi.');
+    }
+
+    final kini = DateTime.now();
+    final nomor = tagihanContoh.length + 32;
+    return Tagihan(
+      id: 'inv$nomor',
+      nomorInvoice: 'INV/2026/${nomor.toString().padLeft(4, '0')}',
+      durasi: durasi,
+      nominal: durasi.harga,
+      saluran: saluran,
+      status: StatusBayar.menunggu,
+      dibuat: kini,
+      batasBayar: kini.add(const Duration(hours: 24)),
+      berlakuSampai: langgananContoh.berakhirSetelahPerpanjang(durasi),
+      kodeBayar: saluran.pakaiKode ? '8808 0812 3456 7890' : null,
+    );
+  }
+
+  /// Memeriksa status tagihan ke gateway.
+  ///
+  /// Di tahap tampilan ia menjawab "lunas" — yang diuji di sini bukan gerbang
+  /// pembayarannya, melainkan apakah layar sesudahnya benar: langganan
+  /// bertambah, riwayat bertambah, dan seluruh aplikasi ikut memperbarui diri.
+  ///
+  /// Mode uji "kosong" mengembalikan tagihan apa adanya — itu bukan kelalaian,
+  /// melainkan tiruan keadaan yang paling sering terjadi sungguhan: pengguna
+  /// menekan "Saya sudah bayar" sebelum dananya benar-benar masuk.
+  static Future<Tagihan> periksaTagihan(Tagihan tagihan) => _kirim(() {
+    if (tagihan.lewatBatas) {
+      return tagihan.salin(status: StatusBayar.kedaluwarsa);
+    }
+
+    final lunas = tagihan.salin(status: StatusBayar.lunas);
+    langgananContoh = Langganan(
+      durasi: tagihan.durasi,
+      // Masa aktif lama tetap jadi titik mulai catatan ini, supaya bilah
+      // kemajuan di Akun tidak melompat mundur setelah pembayaran.
+      tanggalMulai: langgananContoh.menyambung
+          ? langgananContoh.tanggalMulai
+          : DateTime.now(),
+      tanggalBerakhir: tagihan.berlakuSampai,
+    );
+    tagihanContoh = [lunas, ...tagihanContoh];
+    revisiData.value++;
+    return lunas;
+  }, kalauKosong: tagihan);
 
   /// Riwayat, boleh disaring. Penyaringan dikerjakan DI SINI, bukan di layar —
   /// supaya saat penyaringan pindah ke sisi server nanti, layarnya tidak ikut

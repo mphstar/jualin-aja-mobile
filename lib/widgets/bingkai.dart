@@ -11,8 +11,9 @@ import 'keadaan.dart';
 /// lupa menulis cabang kosong — dan itu selalu ketahuan di depan pengguna,
 /// bukan saat membangun.
 ///
-/// Ia juga ikut mendengarkan [modeUji], sehingga sakelar peragaan di layar
-/// Akun langsung memuat ulang seluruh layar yang sedang terbuka.
+/// Ia juga ikut mendengarkan [modeUji] dan [revisiData], sehingga sakelar
+/// peragaan di layar Akun — dan pembayaran yang baru saja lunas — langsung
+/// memuat ulang setiap layar yang sedang terbuka.
 class Bingkai<T> extends StatefulWidget {
   const Bingkai({
     super.key,
@@ -46,16 +47,19 @@ class _BingkaiState<T> extends State<Bingkai<T>> {
   /// saat jaringan lambat, yaitu justru saat paling sulit ditelusuri.
   int _generasi = 0;
 
+  /// Satu langganan untuk dua sumber: sakelar peragaan dan perubahan data.
+  late final Listenable _pemicu = Listenable.merge([modeUji, revisiData]);
+
   @override
   void initState() {
     super.initState();
-    modeUji.addListener(_muatUlang);
+    _pemicu.addListener(_muatUlang);
     _muat();
   }
 
   @override
   void dispose() {
-    modeUji.removeListener(_muatUlang);
+    _pemicu.removeListener(_muatUlang);
     super.dispose();
   }
 

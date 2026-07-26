@@ -12,6 +12,8 @@ import '../widgets/ikon_kotak.dart';
 import '../widgets/kartu.dart';
 import '../widgets/lencana.dart';
 import '../widgets/rangka.dart';
+import 'perpanjang_screen.dart';
+import 'riwayat_bayar_screen.dart';
 
 /// Profil toko, status langganan, dan pengaturan.
 class AkunScreen extends StatelessWidget {
@@ -70,6 +72,16 @@ class AkunScreen extends StatelessWidget {
               judul: 'Kategori produk',
               keterangan: '${kategoriContoh.length} kategori',
               onTekan: () => _menyusul(context, 'Kelola kategori'),
+            ),
+            _BarisMenu(
+              ikon: Icons.receipt_long_outlined,
+              judul: 'Riwayat pembayaran',
+              keterangan: 'Tagihan langganan dan statusnya',
+              onTekan: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const RiwayatBayarScreen(),
+                ),
+              ),
             ),
           ],
         ),
@@ -334,8 +346,11 @@ class _PanelLangganan extends StatelessWidget {
           SizedBox(
             height: 48,
             child: FilledButton(
-              onPressed: () =>
-                  AkunScreen._menyusul(context, 'Perpanjangan langganan'),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const PerpanjangScreen(),
+                ),
+              ),
               style: FilledButton.styleFrom(
                 // Dibalik terhadap panelnya, sama seperti tombol di Beranda.
                 backgroundColor: a.atasFokus,

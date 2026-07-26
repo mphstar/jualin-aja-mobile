@@ -7,6 +7,7 @@ import 'package:mobile/data/repositori.dart';
 import 'package:mobile/main.dart';
 import 'package:mobile/screens/kasir_screen.dart';
 import 'package:mobile/theme/tokens.dart';
+import 'package:mobile/util/format.dart';
 import 'package:mobile/widgets/batang.dart';
 import 'package:mobile/widgets/peraga.dart';
 import 'package:mobile/widgets/rangka.dart';
@@ -60,9 +61,14 @@ void ukuran(WidgetTester tester, double lebar, [double tinggi = 900]) {
 }
 
 void main() {
-  // Sakelar peragaan itu global, jadi tes yang menyetelnya wajib
-  // mengembalikannya — kalau tidak, tes berikutnya mewarisi keadaan galat.
-  tearDown(() => modeUji.value = ModeUji.normal);
+  tearDown(() {
+    // Keduanya global. Sakelar peragaan mengubah lapisan data, dan pembayaran
+    // demo benar-benar memperpanjang langganan — tanpa pengembalian ini, tes
+    // berikutnya mewarisi langganan yang sudah dibayar tes sebelumnya, dan
+    // kegagalannya akan tergantung pada urutan tes.
+    modeUji.value = ModeUji.normal;
+    aturUlangContoh();
+  });
 
   // -------------------------------------------------------------------------
   // Alur
@@ -391,6 +397,30 @@ void main() {
         expect(tester.takeException(), isNull, reason: 'luapan di $tujuan');
       }
 
+      // Alur pembayaran — dua layar dengan angka panjang dan nomor VA 19
+      // karakter, keduanya kandidat kuat untuk meluber di layar sempit.
+      if (pakaiBilah) {
+        await keTab(tester, 'Akun');
+        await ketuk(tester, find.text('Perpanjang langganan'));
+        expect(tester.takeException(), isNull, reason: 'luapan di Perpanjang');
+
+        await ketuk(tester, find.text('Virtual Account BCA'));
+        await ketuk(
+          tester,
+          find.widgetWithText(FilledButton, 'Bayar sekarang'),
+        );
+        expect(tester.takeException(), isNull, reason: 'luapan di Status');
+
+        await ketuk(
+          tester,
+          find.widgetWithText(FilledButton, 'Saya sudah bayar'),
+        );
+        expect(tester.takeException(), isNull, reason: 'luapan di Lunas');
+
+        await ketuk(tester, find.widgetWithText(FilledButton, 'Selesai'));
+        await keTab(tester, 'Beranda');
+      }
+
       // Kasir — layar terpadat di aplikasi.
       await ketuk(tester, find.widgetWithText(FilledButton, 'Buka kasir'));
       expect(tester.takeException(), isNull, reason: 'luapan di Kasir');
@@ -432,6 +462,131 @@ void main() {
       expect(tester.takeException(), isNull, reason: 'mode gelap di $tujuan');
     }
     expect(find.text('Mode gelap'), findsOneWidget);
+  });
+
+  // -------------------------------------------------------------------------
+  // Pembayaran langganan
+  // -------------------------------------------------------------------------
+
+  /// Akun → Perpanjang langganan.
+  Future<void> keLayarBayar(WidgetTester tester) async {
+    await masuk(tester);
+    await keTab(tester, 'Akun');
+    await ketuk(tester, find.text('Perpanjang langganan'));
+  }
+
+  testWidgets('layar perpanjang menolak lanjut sebelum metode dipilih', (
+    tester,
+  ) async {
+    ukuran(tester, 400);
+    await keLayarBayar(tester);
+
+    // Durasi punya bawaan, metode tidak — jadi tombolnya mati dengan label
+    // yang menyebut apa yang kurang, bukan "Bayar sekarang" yang lalu menolak.
+    expect(find.text('Pilih metode pembayaran'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Pilih metode pembayaran'),
+          )
+          .onPressed,
+      isNull,
+    );
+
+    await ketuk(tester, find.text('QRIS'));
+    expect(find.widgetWithText(FilledButton, 'Bayar sekarang'), findsOneWidget);
+  });
+
+  testWidgets('hemat dihitung dari harga, bukan angka pemasaran', (
+    tester,
+  ) async {
+    ukuran(tester, 400);
+    await keLayarBayar(tester);
+
+    // 6 × 99.000 = 594.000 vs 499.000 → 16%
+    // 12 × 99.000 = 1.188.000 vs 899.000 → 24%
+    expect(find.text('Hemat 16%'), findsOneWidget);
+    expect(find.text('Hemat 24%'), findsOneWidget);
+    // Paket bulanan tidak punya pembanding, jadi tidak berpil.
+    expect(find.textContaining('Hemat'), findsNWidgets(2));
+  });
+
+  testWidgets('sisa hari tidak hangus, dan itu dikatakan di layar', (
+    tester,
+  ) async {
+    ukuran(tester, 400);
+    await keLayarBayar(tester);
+
+    // Kartu rincian ada di bawah daftar metode, jadi harus digulir dulu.
+    await tester.drag(find.byType(ListView), const Offset(0, -500));
+    await tenang(tester);
+
+    // PRD §4.4 — perpanjangan menyambung dari tanggal berakhir, bukan dari
+    // hari ini. Kalimatnya wajib ada; tanpa itu orang menunda sampai mati.
+    expect(find.textContaining('tidak hangus'), findsOneWidget);
+
+    final akhirBaru = langgananContoh.berakhirSetelahPerpanjang(
+      DurasiPaket.semesteran,
+    );
+    expect(find.text(tanggal(akhirBaru)), findsWidgets);
+  });
+
+  testWidgets('alur bayar sampai lunas benar-benar memperpanjang langganan', (
+    tester,
+  ) async {
+    ukuran(tester, 400);
+    final sebelum = langgananContoh.tanggalBerakhir;
+
+    await keLayarBayar(tester);
+    await ketuk(tester, find.text('Virtual Account BCA'));
+    await ketuk(tester, find.widgetWithText(FilledButton, 'Bayar sekarang'));
+
+    // Keadaan menunggu: nomor VA dan cara membayarnya harus ada.
+    expect(find.text('Menunggu pembayaran'), findsOneWidget);
+    expect(find.text('8808 0812 3456 7890'), findsOneWidget);
+    expect(find.text('Cara membayar'.toUpperCase()), findsOneWidget);
+
+    await ketuk(tester, find.widgetWithText(FilledButton, 'Saya sudah bayar'));
+    expect(find.text('Lunas'), findsWidgets);
+
+    // Yang diuji bukan gerbang pembayarannya, tapi apakah dunia ikut berubah.
+    expect(langgananContoh.tanggalBerakhir.isAfter(sebelum), isTrue);
+    expect(tagihanContoh.first.status, StatusBayar.lunas);
+
+    await ketuk(tester, find.widgetWithText(FilledButton, 'Selesai'));
+    // Kembali ke Akun, dan sisa harinya sudah bertambah.
+    expect(find.text('Perpanjang langganan'), findsOneWidget);
+    expect(find.text(sisaHari(langgananContoh.sisaHari)), findsOneWidget);
+  });
+
+  testWidgets('"Saya sudah bayar" sebelum dana masuk mengatakan apa adanya', (
+    tester,
+  ) async {
+    ukuran(tester, 400);
+    await keLayarBayar(tester);
+    await ketuk(tester, find.text('QRIS'));
+    await ketuk(tester, find.widgetWithText(FilledButton, 'Bayar sekarang'));
+
+    // Mode kosong menirukan keadaan paling sering: pengguna menekan tombol
+    // sebelum dananya benar-benar masuk.
+    modeUji.value = ModeUji.kosong;
+    await ketuk(tester, find.widgetWithText(FilledButton, 'Saya sudah bayar'));
+
+    expect(find.textContaining('belum terdeteksi'), findsOneWidget);
+    expect(find.text('Menunggu pembayaran'), findsOneWidget);
+  });
+
+  testWidgets('riwayat pembayaran memuat tagihan lama dan statusnya', (
+    tester,
+  ) async {
+    ukuran(tester, 400);
+    await masuk(tester);
+    await keTab(tester, 'Akun');
+    await ketuk(tester, find.text('Riwayat pembayaran'));
+
+    expect(find.text('INV/2026/0031'), findsOneWidget);
+    expect(find.text('Kedaluwarsa'), findsOneWidget);
+    expect(find.text('Lunas'), findsNWidgets(2));
   });
 
   // -------------------------------------------------------------------------
