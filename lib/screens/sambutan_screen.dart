@@ -1,8 +1,10 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
-import '../data/contoh.dart';
+import '../widgets/ilustrasi.dart';
 import '../widgets/peraga.dart';
 import '../widgets/tombol_pil.dart';
 
@@ -99,45 +101,32 @@ class _SambutanScreenState extends State<SambutanScreen> {
 
 /// Isi ketiga slide.
 ///
-/// Peraganya sengaja bukan ikon di dalam lingkaran, melainkan **benda yang
-/// dijanjikan slide itu** — struk, kartu stok, panel laporan. Ketiganya
-/// dibangun dari widget yang sama dengan layar sungguhan, jadi apa yang
-/// dilihat sebelum masuk memang yang ditemukan setelah masuk.
-typedef _IsiSlide = ({String judul, String bawah, Widget peraga});
+/// Gambarnya sengaja bukan ikon di dalam lingkaran, melainkan **benda yang
+/// dijanjikan slide itu**: ponsel yang dipakai satu tangan, rak yang menipis,
+/// panel laporan.
+///
+/// Versi sebelumnya memakai replika antarmuka — struk, kartu stok, panel omzet
+/// — yang dibangun dari widget layar sungguhan. Niatnya benar, tapi hasilnya
+/// terbaca seperti tangkapan layar yang dikecilkan, bukan seperti gambar.
+/// Ilustrasi garis punya keleluasaan yang tidak dimiliki replika: ia boleh
+/// melebih-lebihkan yang penting dan membuang sisanya.
+typedef _IsiSlide = ({String judul, String bawah, GambarIlustrasi gambar});
 
-/// Struk contoh memakai produk asli dari katalog, bukan "Item A / Item B" —
-/// panjang nama sungguhan itu yang menguji apakah barisnya muat.
-final _slideSambutan = <_IsiSlide>[
+const _slideSambutan = <_IsiSlide>[
   (
     judul: 'Kasir yang\nmuat di satu\ntangan',
     bawah: 'GESER UNTUK LANJUT',
-    peraga: PeragaStruk(
-      namaToko: namaToko,
-      baris: [
-        ('Kopi Susu Gula Aren', 2, 18000),
-        ('Pisang Goreng', 1, 12000),
-        ('Teh Tarik', 1, 14000),
-      ],
-    ),
+    gambar: GambarIlustrasi.kasir,
   ),
   (
     judul: 'Catat\npenjualan,\nbukan kertas',
     bawah: 'STOK IKUT TURUN SENDIRI',
-    peraga: PeragaStok(
-      baris: [
-        ('Nasi Goreng Kampung', 'Stok 12', 0),
-        ('Mie Goreng Spesial', 'Sisa 4', 1),
-        ('Ayam Geprek', 'Habis', 2),
-      ],
-    ),
+    gambar: GambarIlustrasi.rak,
   ),
   (
     judul: 'Laporan dan\nresep ikut\nsekalian',
     bawah: 'TERMASUK DALAM LANGGANAN',
-    peraga: PeragaLaporan(
-      omzet: 4280000,
-      deret: [420, 380, 610, 540, 720, 900, 710],
-    ),
+    gambar: GambarIlustrasi.laporan,
   ),
 ];
 
@@ -156,16 +145,13 @@ class _Slide extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Tinggi tetap supaya carousel tidak melompat tiap kali digeser —
-          // ketiga peraga tingginya alami tidak sama. `scaleDown` yang
-          // menjaganya tetap muat berapa pun ukuran huruf sistem: memaku
-          // tinggi tanpa itu berarti menebak tinggi teks, dan tebakannya
-          // meleset begitu pengguna membesarkan font.
+          // Tinggi tetap supaya carousel tidak melompat tiap kali digeser.
+          // Ketiga ilustrasi memakai rasio yang sama, jadi `FittedBox` tidak
+          // lagi dibutuhkan untuk menyamakannya — dan karena tidak ada teks di
+          // dalam gambar, ukuran huruf sistem tidak bisa membuatnya meluber.
           SizedBox(
             height: 232,
-            child: Center(
-              child: FittedBox(fit: BoxFit.scaleDown, child: isi.peraga),
-            ),
+            child: Center(child: Ilustrasi(gambar: isi.gambar)),
           ),
           const SizedBox(height: Jarak.lg),
           Text(isi.judul, style: context.teks.displaySmall),
@@ -484,59 +470,86 @@ class _KerangkaPertanyaan extends StatelessWidget {
           tooltip: 'Kembali',
         ),
       ),
-      body: SafeArea(
-        top: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: Column(
-              children: [
-                Expanded(
-                  child: SingleChildScrollView(
+      // Dua layar pertanyaan tidak punya ilustrasi — ruang untuk itu lebih
+      // baik dipakai pilihannya sendiri. Tapi kepala halaman yang kosong
+      // melompong terbaca seperti layar yang belum selesai memuat, dan motif
+      // ini yang memberinya tekstur tanpa menuntut perhatian.
+      body: MotifLatar(
+        child: SafeArea(
+          top: false,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Column(
+                children: [
+                  // Penunjuk langkah tinggal di atas, tidak ikut ditengahkan:
+                  // ia penanda posisi, dan penanda posisi yang melayang di
+                  // tengah layar tidak lagi menandai apa pun.
+                  Padding(
                     padding: const EdgeInsets.fromLTRB(
                       Jarak.md,
                       Jarak.xs,
                       Jarak.md,
+                      0,
+                    ),
+                    child: PenunjukLangkah(langkah: langkah, dari: 2),
+                  ),
+                  Expanded(
+                    // Isinya ditengahkan secara tegak saat muat, dan menggulir
+                    // saat tidak. Versi sebelumnya selalu merapat ke atas, jadi
+                    // di ponsel tinggi menyisakan sepertiga layar kosong antara
+                    // pilihan terakhir dan tombol — persis kesan "sepi" yang
+                    // membuat layar ini terasa belum selesai.
+                    child: LayoutBuilder(
+                      builder: (context, batas) => SingleChildScrollView(
+                        padding: const EdgeInsets.all(Jarak.md),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: math.max(
+                              0,
+                              batas.maxHeight - Jarak.md * 2,
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                judul,
+                                textAlign: TextAlign.center,
+                                style: context.teks.headlineSmall?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.2,
+                                ),
+                              ),
+                              const SizedBox(height: Jarak.xs2),
+                              Text(
+                                keterangan,
+                                textAlign: TextAlign.center,
+                                style: context.teks.bodyMedium?.copyWith(
+                                  color: context.warna.onSurfaceVariant,
+                                  height: 1.45,
+                                ),
+                              ),
+                              const SizedBox(height: Jarak.md),
+                              isi,
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
                       Jarak.md,
+                      0,
+                      Jarak.md,
+                      Jarak.sm,
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        PenunjukLangkah(langkah: langkah, dari: 2),
-                        const SizedBox(height: Jarak.md),
-                        Text(
-                          judul,
-                          textAlign: TextAlign.center,
-                          style: context.teks.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            height: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: Jarak.xs2),
-                        Text(
-                          keterangan,
-                          textAlign: TextAlign.center,
-                          style: context.teks.bodyMedium?.copyWith(
-                            color: context.warna.onSurfaceVariant,
-                            height: 1.45,
-                          ),
-                        ),
-                        const SizedBox(height: Jarak.md),
-                        isi,
-                      ],
-                    ),
+                    child: TombolPil(label: labelLanjut, onTekan: onLanjut),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    Jarak.md,
-                    0,
-                    Jarak.md,
-                    Jarak.sm,
-                  ),
-                  child: TombolPil(label: labelLanjut, onTekan: onLanjut),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

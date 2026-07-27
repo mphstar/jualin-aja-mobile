@@ -5,6 +5,8 @@
 /// penuh, ganti berkas ini — pemanggilnya tidak berubah.
 library;
 
+import 'package:flutter/services.dart';
+
 const _bulanPendek = [
   'Jan',
   'Feb',
@@ -94,3 +96,37 @@ String inisial(String nama) {
   final bagian = nama.trim().split(RegExp(r'\s+'));
   return bagian.take(2).map((k) => k.isEmpty ? '' : k[0].toUpperCase()).join();
 }
+
+/// Menyisipkan titik ribuan sambil diketik.
+///
+/// Nominal rupiah tanpa pemisah gampang salah baca justru di angka besar —
+/// "150000" dan "1500000" berbeda satu digit yang tidak terlihat saat sedang
+/// terburu-buru di depan pembeli.
+class FormatRibuan extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue lama,
+    TextEditingValue baru,
+  ) {
+    final angkaSaja = baru.text.replaceAll(RegExp('[^0-9]'), '');
+    if (angkaSaja.isEmpty) return const TextEditingValue();
+
+    // Batas 12 digit: lebih dari itu bukan nominal warung, dan hanya membuka
+    // pintu untuk luapan bilangan.
+    final nilai = int.tryParse(
+      angkaSaja.substring(0, angkaSaja.length.clamp(0, 12)),
+    );
+    if (nilai == null) return lama;
+
+    final teks = angka(nilai);
+
+    return TextEditingValue(
+      text: teks,
+      selection: TextSelection.collapsed(offset: teks.length),
+    );
+  }
+}
+
+/// Baca nominal yang sudah bertitik ribuan kembali jadi bilangan.
+int bacaNominal(String teks) =>
+    int.tryParse(teks.replaceAll('.', '').trim()) ?? 0;

@@ -7,7 +7,7 @@
 /// §6, dan kalau backend menghitungnya berbeda, yang salah backend-nya.
 library;
 
-import 'package:flutter/widgets.dart' show IconData;
+import 'package:flutter/material.dart' show IconData, Icons;
 
 class Kategori {
   const Kategori({required this.id, required this.nama, required this.ikon});
@@ -17,7 +17,43 @@ class Kategori {
 
   /// Ikon untuk chip kategori bundar di layar kasir.
   final IconData ikon;
+
+  Kategori salin({String? nama, IconData? ikon}) => Kategori(
+    id: id,
+    nama: nama ?? this.nama,
+    ikon: ikon ?? this.ikon,
+  );
 }
+
+/// Ikon yang boleh dipilih untuk kategori.
+///
+/// Daftar tertutup, sengaja. Membuka seluruh pustaka Material berarti memberi
+/// pemilik toko dua ribu pilihan untuk satu keputusan yang tidak penting —
+/// dan chip kasir yang isinya ikon "cloud" atau "settings" membuat barisnya
+/// berhenti terbaca sebagai kategori makanan.
+///
+/// Urutannya mengikuti apa yang paling sering dijual warung: minuman dulu,
+/// lalu makanan, lalu sisanya.
+const ikonKategoriPilihan = <IconData>[
+  Icons.coffee_outlined,
+  Icons.local_drink_outlined,
+  Icons.local_cafe_outlined,
+  Icons.emoji_food_beverage_outlined,
+  Icons.wine_bar_outlined,
+  Icons.ramen_dining_outlined,
+  Icons.rice_bowl_outlined,
+  Icons.lunch_dining_outlined,
+  Icons.local_pizza_outlined,
+  Icons.set_meal_outlined,
+  Icons.bakery_dining_outlined,
+  Icons.cake_outlined,
+  Icons.icecream_outlined,
+  Icons.cookie_outlined,
+  Icons.egg_alt_outlined,
+  Icons.local_grocery_store_outlined,
+  Icons.soap_outlined,
+  Icons.category_outlined,
+];
 
 class Produk {
   const Produk({
@@ -45,7 +81,29 @@ class Produk {
 
   bool get habis => lacakStok && stok <= 0;
   bool get menipis => lacakStok && stok > 0 && stok <= 5;
+
+  Produk salin({
+    String? nama,
+    String? kategoriId,
+    int? hargaJual,
+    String? satuan,
+    bool? lacakStok,
+    int? stok,
+  }) => Produk(
+    id: id,
+    nama: nama ?? this.nama,
+    kategoriId: kategoriId ?? this.kategoriId,
+    hargaJual: hargaJual ?? this.hargaJual,
+    satuan: satuan ?? this.satuan,
+    lacakStok: lacakStok ?? this.lacakStok,
+    stok: stok ?? this.stok,
+    gambarUrl: gambarUrl,
+  );
 }
+
+/// Satuan yang lazim dipakai warung. Bukan daftar tertutup — formulir tetap
+/// menerima ketikan bebas, ini cuma jalan pintas untuk yang paling sering.
+const satuanUmum = <String>['pcs', 'porsi', 'gelas', 'cup', 'botol', 'bungkus'];
 
 class ItemKeranjang {
   const ItemKeranjang({required this.produk, required this.jumlah});
@@ -77,6 +135,9 @@ class BarisStruk {
   int get subtotal => hargaSatuan * jumlah;
 }
 
+/// `ditahan` berarti barangnya sudah keluar tapi uangnya belum masuk —
+/// "bayar nanti". Ia sengaja BUKAN status lunas: omzet hari itu tidak boleh
+/// ikut naik hanya karena ada yang berjanji membayar besok.
 enum StatusTransaksi { selesai, ditahan, batal }
 
 enum MetodeBayar { tunai, qris, transfer }
@@ -97,6 +158,8 @@ class Transaksi {
     required this.baris,
     required this.metode,
     required this.status,
+    this.pelanggan,
+    this.uangDiterima,
   });
 
   final String id;
@@ -106,13 +169,149 @@ class Transaksi {
   final MetodeBayar metode;
   final StatusTransaksi status;
 
+  /// Siapa yang berutang. Hanya terisi untuk transaksi [StatusTransaksi.ditahan]
+  /// — piutang tanpa nama adalah piutang yang tidak akan pernah ditagih.
+  final String? pelanggan;
+
+  /// Uang tunai yang diserahkan pembeli. Null untuk metode non-tunai.
+  ///
+  /// Disimpan, bukan dihitung, karena ia FAKTA transaksi: kembaliannya
+  /// diturunkan dari sini, dan kalau harga produk berubah besok, struk kemarin
+  /// harus tetap menunjukkan kembalian yang benar-benar diberikan.
+  final int? uangDiterima;
+
   /// Diturunkan, tidak disimpan. Total yang disimpan terpisah dari barisnya
   /// adalah dua sumber kebenaran, dan salah satunya pasti akan basi.
   int get total => baris.fold(0, (n, b) => n + b.subtotal);
   int get jumlahItem => baris.fold(0, (n, b) => n + b.jumlah);
 
+  /// Kembalian, atau null kalau transaksi ini bukan tunai.
+  int? get kembalian => uangDiterima == null ? null : uangDiterima! - total;
+
   /// Hanya transaksi selesai yang dihitung sebagai omzet.
   bool get dihitung => status == StatusTransaksi.selesai;
+
+  /// Barang sudah keluar, uang belum masuk.
+  bool get piutang => status == StatusTransaksi.ditahan;
+
+  Transaksi salin({
+    MetodeBayar? metode,
+    StatusTransaksi? status,
+    int? uangDiterima,
+  }) => Transaksi(
+    id: id,
+    nomorStruk: nomorStruk,
+    waktu: waktu,
+    baris: baris,
+    metode: metode ?? this.metode,
+    status: status ?? this.status,
+    pelanggan: pelanggan,
+    uangDiterima: uangDiterima ?? this.uangDiterima,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Identitas toko & struk
+// ---------------------------------------------------------------------------
+
+/// Data toko yang tercetak di struk dan tampil di layar Akun.
+class Toko {
+  const Toko({
+    required this.nama,
+    required this.jenisUsaha,
+    required this.alamat,
+    required this.telepon,
+  });
+
+  final String nama;
+  final String jenisUsaha;
+  final String alamat;
+  final String telepon;
+
+  Toko salin({
+    String? nama,
+    String? jenisUsaha,
+    String? alamat,
+    String? telepon,
+  }) => Toko(
+    nama: nama ?? this.nama,
+    jenisUsaha: jenisUsaha ?? this.jenisUsaha,
+    alamat: alamat ?? this.alamat,
+    telepon: telepon ?? this.telepon,
+  );
+}
+
+/// Jenis usaha yang bisa dipilih. Sama dengan daftar di alur pembuka, supaya
+/// jawaban di sana tidak jadi nilai yang tidak dikenali di sini.
+const jenisUsahaPilihan = <String>[
+  'Kafe',
+  'Restoran',
+  'Warung',
+  'Bakery',
+  'Kelontong',
+  'Lainnya',
+];
+
+/// Lebar kertas printer termal. Dua ukuran ini yang beredar; angkanya
+/// menentukan berapa karakter yang muat per baris, jadi ia bukan sekadar
+/// preferensi tampilan.
+enum LebarKertas { mm58, mm80 }
+
+extension RinciKertas on LebarKertas {
+  String get label => switch (this) {
+    LebarKertas.mm58 => '58 mm',
+    LebarKertas.mm80 => '80 mm',
+  };
+
+  String get keterangan => switch (this) {
+    LebarKertas.mm58 => 'Printer saku, 32 karakter per baris',
+    LebarKertas.mm80 => 'Printer meja, 48 karakter per baris',
+  };
+
+  /// Lebar pratinjau di layar, sebanding dengan lebar kertas aslinya.
+  double get lebarPratinjau => switch (this) {
+    LebarKertas.mm58 => 210,
+    LebarKertas.mm80 => 280,
+  };
+}
+
+/// Apa yang dicetak di struk.
+///
+/// Kepala dan kaki struk dipisah dari data toko: nama dan alamat adalah FAKTA
+/// toko, sedangkan "Terima kasih, sampai jumpa!" adalah pilihan penyajian.
+/// Menyatukannya berarti mengubah sapaan menuntut menyunting identitas toko.
+class PengaturanStruk {
+  const PengaturanStruk({
+    required this.kepala,
+    required this.kaki,
+    required this.tampilkanAlamat,
+    required this.tampilkanTelepon,
+    required this.tampilkanNamaKasir,
+    required this.lebar,
+  });
+
+  final String kepala;
+  final String kaki;
+  final bool tampilkanAlamat;
+  final bool tampilkanTelepon;
+  final bool tampilkanNamaKasir;
+  final LebarKertas lebar;
+
+  PengaturanStruk salin({
+    String? kepala,
+    String? kaki,
+    bool? tampilkanAlamat,
+    bool? tampilkanTelepon,
+    bool? tampilkanNamaKasir,
+    LebarKertas? lebar,
+  }) => PengaturanStruk(
+    kepala: kepala ?? this.kepala,
+    kaki: kaki ?? this.kaki,
+    tampilkanAlamat: tampilkanAlamat ?? this.tampilkanAlamat,
+    tampilkanTelepon: tampilkanTelepon ?? this.tampilkanTelepon,
+    tampilkanNamaKasir: tampilkanNamaKasir ?? this.tampilkanNamaKasir,
+    lebar: lebar ?? this.lebar,
+  );
 }
 
 class Ebook {

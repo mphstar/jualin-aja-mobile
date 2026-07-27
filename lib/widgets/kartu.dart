@@ -109,6 +109,72 @@ class KepalaHalaman extends StatelessWidget {
   }
 }
 
+/// Panel tinta berisi satu angka besar — permukaan fokus sebuah halaman.
+///
+/// Hanya boleh ada SATU per layar. Dua permukaan fokus berarti tidak ada yang
+/// fokus, dan mata kembali menyapu halaman dari atas seperti sebelum panel ini
+/// ada.
+///
+/// Angkanya mengecil sendiri daripada terpotong: "Rp 1.234.000" pada 320 px
+/// sudah menyentuh tepi.
+class PanelAngka extends StatelessWidget {
+  const PanelAngka({
+    super.key,
+    required this.label,
+    required this.nilai,
+    this.keterangan,
+  });
+
+  final String label;
+  final String nilai;
+  final String? keterangan;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = context.aksen;
+    return Container(
+      padding: const EdgeInsets.all(Jarak.sm),
+      decoration: BoxDecoration(
+        color: a.fokus,
+        borderRadius: BorderRadius.circular(Lengkung.panel),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: context.teks.labelSmall?.copyWith(
+              color: a.atasFokusRedup,
+              letterSpacing: 0.8,
+            ),
+          ),
+          const SizedBox(height: 2),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              nilai,
+              style: context.teks.displaySmall?.copyWith(
+                color: a.atasFokus,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+          if (keterangan != null) ...[
+            const SizedBox(height: Jarak.xs2),
+            Text(
+              keterangan!,
+              style: context.teks.bodySmall?.copyWith(color: a.atasFokusRedup),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 /// Baris daftar baku: ikon/petak di kiri, dua baris teks di tengah, nilai di
 /// kanan.
 class BarisDaftar extends StatelessWidget {

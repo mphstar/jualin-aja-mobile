@@ -9,8 +9,10 @@ import '../widgets/bingkai.dart';
 import '../widgets/ikon_kotak.dart';
 import '../widgets/kartu.dart';
 import '../widgets/keadaan.dart';
+import '../widgets/lembar_struk.dart';
 import '../widgets/lencana.dart';
 import '../widgets/rangka.dart';
+import 'piutang_screen.dart';
 
 /// Riwayat transaksi — tab kedua di dalam Laporan.
 ///
@@ -47,6 +49,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
     return ListView(
       padding: EdgeInsets.fromLTRB(p.left, Jarak.sm, p.right, p.bottom),
       children: [
+        const _PintasanPiutang(),
         TextField(
           controller: _kendaliCari,
           onChanged: (v) => setState(() => _cari = v),
@@ -124,6 +127,57 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
         ),
       ],
     );
+  }
+}
+
+/// Tautan ke daftar piutang, hanya saat memang ada yang belum tertagih.
+///
+/// Ditaruh di Riwayat karena di sinilah orang datang mencari struk lama — dan
+/// pertanyaan "mana yang belum dibayar" hampir selalu muncul di perjalanan
+/// yang sama. Saringan "Ditahan" di bawah memang menampilkan struk yang sama,
+/// tapi ia menjawabnya sebagai daftar struk, bukan sebagai daftar utang: tanpa
+/// jumlah total dan tanpa nama penunggak di depan.
+class _PintasanPiutang extends StatelessWidget {
+  const _PintasanPiutang();
+
+  @override
+  Widget build(BuildContext context) {
+    return Bingkai<List<Transaksi>>(
+      ambil: Repositori.piutang,
+      // Rangkanya kosong, bukan petak berkedip: baris ini boleh saja tidak
+      // pernah muncul, dan rangka untuk sesuatu yang mungkin tidak ada justru
+      // menjanjikan isi yang tidak datang.
+      rangka: const SizedBox.shrink(),
+      kosong: (d) => d.isEmpty,
+      saatKosong: const SizedBox.shrink(),
+      isi: (context, daftar) => Padding(
+        padding: const EdgeInsets.only(bottom: Jarak.xs),
+        child: KartuDaftar(
+          anak: [
+            BarisDaftar(
+              awalan: const IkonKotak(
+                Icons.schedule_outlined,
+                nada: NadaIkon.peringatan,
+                ukuran: 36,
+              ),
+              judul: 'Bayar nanti',
+              keterangan:
+                  '${daftar.length} struk belum dibayar '
+                  '${_pembeli(daftar)}',
+              akhiran: rupiah(daftar.fold(0, (n, t) => n + t.total)),
+              onTekan: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const PiutangScreen()),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _pembeli(List<Transaksi> daftar) {
+    final nama = daftar.map((t) => t.pelanggan ?? '').toSet();
+    return nama.length == 1 ? '· ${nama.first}' : '· ${nama.length} pembeli';
   }
 }
 
@@ -235,119 +289,26 @@ class _BarisTransaksi extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final batal = transaksi.status == StatusTransaksi.batal;
+    final (ikon, nada) = switch (transaksi.status) {
+      StatusTransaksi.batal => (Icons.close, NadaIkon.bahaya),
+      StatusTransaksi.ditahan => (Icons.schedule_outlined, NadaIkon.peringatan),
+      StatusTransaksi.selesai => (Icons.check, NadaIkon.sukses),
+    };
+
     return BarisDaftar(
-      awalan: IkonKotak(
-        batal ? Icons.close : Icons.check,
-        nada: batal ? NadaIkon.bahaya : NadaIkon.sukses,
-        ukuran: 36,
-      ),
+      awalan: IkonKotak(ikon, nada: nada, ukuran: 36),
       judul: transaksi.nomorStruk,
-      keterangan:
-          '${jam(transaksi.waktu)} · ${transaksi.metode.label} · '
-          '${transaksi.jumlahItem} item',
+      keterangan: transaksi.piutang
+          // Untuk piutang, metode pembayaran belum berarti apa-apa — yang
+          // dicari mata di baris ini adalah siapa yang berutang.
+          ? '${jam(transaksi.waktu)} · ${transaksi.pelanggan ?? 'Tanpa nama'}'
+          : '${jam(transaksi.waktu)} · ${transaksi.metode.label} · '
+                '${transaksi.jumlahItem} item',
       akhiran: rupiah(transaksi.total),
-      bawahAkhiran: batal ? Lencana.transaksi(transaksi.status) : null,
-      onTekan: () => showModalBottomSheet<void>(
-        context: context,
-        showDragHandle: true,
-        builder: (_) => _DetailStruk(transaksi: transaksi),
-      ),
-    );
-  }
-}
-
-/// Detail struk. Rincinya nyata — barisnya diambil dari transaksi, bukan
-/// diringkas ulang.
-class _DetailStruk extends StatelessWidget {
-  const _DetailStruk({required this.transaksi});
-
-  final Transaksi transaksi;
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(Jarak.sm, 0, Jarak.sm, Jarak.sm),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    transaksi.nomorStruk,
-                    style: context.teks.titleLarge,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: Jarak.xs2),
-                Lencana.transaksi(transaksi.status),
-              ],
-            ),
-            const SizedBox(height: 2),
-            Text(
-              '${tanggal(transaksi.waktu)} · ${jam(transaksi.waktu)} · '
-              '${transaksi.metode.label}',
-              style: context.teks.bodySmall?.copyWith(
-                color: context.warna.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: Jarak.sm),
-            KartuDaftar(
-              anak: [
-                for (final b in transaksi.baris)
-                  BarisDaftar(
-                    awalan: SizedBox(
-                      width: 28,
-                      child: Text(
-                        '${b.jumlah}×',
-                        style: context.teks.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: context.warna.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                    judul: b.nama,
-                    keterangan: rupiah(b.hargaSatuan),
-                    akhiran: rupiah(b.subtotal),
-                  ),
-              ],
-            ),
-            const SizedBox(height: Jarak.xs),
-            Row(
-              children: [
-                Expanded(child: Text('Total', style: context.teks.titleMedium)),
-                Flexible(
-                  child: Text(
-                    rupiah(transaksi.total),
-                    style: context.teks.titleLarge?.copyWith(
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: Jarak.sm),
-            OutlinedButton.icon(
-              onPressed: () {
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context)
-                  ..hideCurrentSnackBar()
-                  ..showSnackBar(
-                    const SnackBar(content: Text('Cetak struk menyusul.')),
-                  );
-              },
-              icon: const Icon(Icons.print_outlined, size: 18),
-              label: const Text('Cetak ulang'),
-            ),
-          ],
-        ),
-      ),
+      bawahAkhiran: batal || transaksi.piutang
+          ? Lencana.transaksi(transaksi.status)
+          : null,
+      onTekan: () => LembarStruk.tampilkan(context, transaksi),
     );
   }
 }

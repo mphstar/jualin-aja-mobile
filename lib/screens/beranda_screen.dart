@@ -12,8 +12,11 @@ import '../widgets/bingkai.dart';
 import '../widgets/ikon_kotak.dart';
 import '../widgets/kartu.dart';
 import '../widgets/keadaan.dart';
+import '../widgets/lembar_struk.dart';
 import '../widgets/lencana.dart';
 import '../widgets/rangka.dart';
+import 'piutang_screen.dart';
+import 'produk_screen.dart';
 
 /// Beranda.
 ///
@@ -126,7 +129,7 @@ class _Isi extends StatelessWidget {
   }
 
   static bool _adaPerhatian(RingkasanBeranda r) =>
-      r.adaMasalahStok || r.langganan.sisaHari <= 7;
+      r.adaMasalahStok || r.adaPiutang || r.langganan.sisaHari <= 7;
 }
 
 // ---------------------------------------------------------------------------
@@ -440,6 +443,20 @@ class _PerluPerhatian extends StatelessWidget {
           keterangan: 'Sisa lima atau kurang',
           onTekan: () => onKeTab?.call(1),
         ),
+      if (ringkasan.adaPiutang)
+        BarisDaftar(
+          awalan: const IkonKotak(
+            Icons.schedule_outlined,
+            nada: NadaIkon.peringatan,
+            ukuran: 36,
+          ),
+          judul: '${ringkasan.piutangJumlah} struk belum dibayar',
+          keterangan: 'Bayar nanti, menunggu ditagih',
+          akhiran: rupiah(ringkasan.piutangTotal),
+          onTekan: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const PiutangScreen()),
+          ),
+        ),
     ];
 
     return Column(
@@ -463,14 +480,13 @@ class _AksiCepat extends StatelessWidget {
       (
         Icons.add_box_outlined,
         'Tambah produk',
-        () => _menyusul(context, 'Formulir produk'),
+        () => ProdukScreen.bukaFormulir(context),
       ),
       (Icons.inventory_2_outlined, 'Cek stok', () => onKeTab?.call(1)),
-      (
-        Icons.print_outlined,
-        'Cetak ulang struk',
-        () => _menyusul(context, 'Cetak struk'),
-      ),
+      // Cetaknya sendiri memang belum ada, tapi struk yang mau dicetak ulang
+      // dicari di Riwayat — mengantar ke sana lebih berguna daripada pesan
+      // "menyusul" yang membuat orang berhenti di tempat.
+      (Icons.print_outlined, 'Cetak ulang struk', () => onKeTab?.call(2)),
       (
         Icons.lock_clock_outlined,
         'Tutup kasir',
@@ -601,19 +617,22 @@ class _BarisTransaksi extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final batal = transaksi.status == StatusTransaksi.batal;
+    final (ikon, nada) = switch (transaksi.status) {
+      StatusTransaksi.batal => (Icons.close, NadaIkon.bahaya),
+      StatusTransaksi.ditahan => (Icons.schedule_outlined, NadaIkon.peringatan),
+      StatusTransaksi.selesai => (Icons.check, NadaIkon.sukses),
+    };
+
     return BarisDaftar(
-      awalan: IkonKotak(
-        batal ? Icons.close : Icons.check,
-        nada: batal ? NadaIkon.bahaya : NadaIkon.sukses,
-        ukuran: 36,
-      ),
+      awalan: IkonKotak(ikon, nada: nada, ukuran: 36),
       judul: transaksi.nomorStruk,
-      keterangan:
-          '${relatif(transaksi.waktu)} · ${transaksi.metode.label} · '
-          '${transaksi.jumlahItem} item',
+      keterangan: transaksi.piutang
+          ? '${relatif(transaksi.waktu)} · '
+                '${transaksi.pelanggan ?? 'Tanpa nama'}'
+          : '${relatif(transaksi.waktu)} · ${transaksi.metode.label} · '
+                '${transaksi.jumlahItem} item',
       akhiran: rupiah(transaksi.total),
-      onTekan: () => _menyusul(context, 'Detail ${transaksi.nomorStruk}'),
+      onTekan: () => LembarStruk.tampilkan(context, transaksi),
     );
   }
 }

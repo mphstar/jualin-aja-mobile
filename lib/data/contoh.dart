@@ -49,6 +49,33 @@ const emailPemilik = 'bintang@kopisenja.id';
 const jenisUsaha = 'Kafe';
 const kotaToko = 'Bandung';
 
+/// Data toko yang bisa disunting dari Akun · Data toko.
+///
+/// `namaToko` di atas tetap ada sebagai nilai awal dan dipakai di tempat yang
+/// memang tidak boleh ikut berubah — kredensial demo, misalnya.
+Toko tokoContoh = _tokoAwal();
+
+Toko _tokoAwal() => const Toko(
+  nama: namaToko,
+  jenisUsaha: jenisUsaha,
+  alamat: 'Jl. Cihampelas No. 148, $kotaToko',
+  telepon: '0812-3456-7890',
+);
+
+/// Pengaturan struk. Nilai awalnya sengaja sudah terisi wajar — struk yang
+/// keluar dari kotak tanpa disetel apa pun harus tetap layak diberikan ke
+/// pembeli.
+PengaturanStruk strukContoh = _strukAwal();
+
+PengaturanStruk _strukAwal() => const PengaturanStruk(
+  kepala: 'Terima kasih sudah mampir',
+  kaki: 'Barang yang sudah dibeli tidak dapat ditukar',
+  tampilkanAlamat: true,
+  tampilkanTelepon: true,
+  tampilkanNamaKasir: false,
+  lebar: LebarKertas.mm58,
+);
+
 /// Kredensial demo. Tahap tampilan belum punya autentikasi sungguhan, jadi
 /// ditampilkan terang-terangan di layar masuk — bukan disembunyikan seolah
 /// nyata.
@@ -58,14 +85,24 @@ const kredensialDemo = (email: 'bintang@kopisenja.id', sandi: 'kopisenja');
 // Master data
 // ---------------------------------------------------------------------------
 
-const kategoriContoh = <Kategori>[
+/// Tidak lagi `const`: layar Kategori produk menambah, menyunting, mengurutkan
+/// ulang, dan menghapus isinya. Urutannya BUKAN sekadar tampilan — ia yang
+/// menentukan urutan chip di kasir dan urutan bagian di layar Produk.
+List<Kategori> kategoriContoh = _kategoriAwal();
+
+List<Kategori> _kategoriAwal() => const <Kategori>[
   Kategori(id: 'k1', nama: 'Kopi', ikon: Icons.coffee_outlined),
   Kategori(id: 'k2', nama: 'Non-Kopi', ikon: Icons.local_drink_outlined),
   Kategori(id: 'k3', nama: 'Makanan', ikon: Icons.ramen_dining_outlined),
   Kategori(id: 'k4', nama: 'Camilan', ikon: Icons.bakery_dining_outlined),
 ];
 
-const produkContoh = <Produk>[
+/// Tidak lagi `const`: formulir produk menambah dan mengubah isinya, dan
+/// penjualan menurunkan stoknya. Benihnya tetap — yang berubah hanya apa yang
+/// dilakukan pengguna selama aplikasi berjalan.
+List<Produk> produkContoh = _produkAwal();
+
+List<Produk> _produkAwal() => <Produk>[
   Produk(
     id: 'p1',
     nama: 'Kopi Susu Gula Aren',
@@ -186,9 +223,23 @@ final _undianProduk = <Produk>[
 // Transaksi — 30 hari ke belakang
 // ---------------------------------------------------------------------------
 
+/// Nama penunggak.
+///
+/// Sengaja memakai bentuk yang benar-benar ditulis pemilik warung — sapaan,
+/// julukan, atau nomor meja — bukan nama lengkap ber-KTP. Kolom nama pembeli
+/// yang diuji dengan "Ahmad Fauzi" tidak pernah menguji apakah "Mas ojol —
+/// pesanan online" masih muat di satu baris.
+const _pelangganPiutang = <String>[
+  'Bu Rina — meja 3',
+  'Pak Anto',
+  'Mbak Sari kantor',
+  'Mas ojol',
+  'Bu Haji Enung',
+];
+
 /// Dibangkitkan sekali, dari hari terlama ke hari terbaru, supaya nomor
 /// struknya menaik seperti di toko sungguhan.
-final List<Transaksi> transaksiContoh = _bangkitkanTransaksi();
+List<Transaksi> transaksiContoh = _bangkitkanTransaksi();
 
 List<Transaksi> _bangkitkanTransaksi() {
   final acak = _Acak(20260726);
@@ -244,6 +295,24 @@ List<Transaksi> _bangkitkanTransaksi() {
       if (baris.isEmpty) continue;
 
       final undi = acak.berikutnya();
+
+      // ~4% batal. Angkanya kecil karena pembatalan memang jarang, dan daftar
+      // yang setengahnya merah tidak mewakili toko mana pun.
+      //
+      // Piutang hanya dibangkitkan untuk sepuluh hari terakhir. Utang warung
+      // yang menganggur sebulan sudah bukan piutang, itu kerugian — dan
+      // menaruhnya di data contoh membuat layar Bayar nanti terbaca seperti
+      // toko yang tidak pernah menagih.
+      final undiStatus = acak.berikutnya();
+      final (StatusTransaksi status, String? pelanggan) = switch (undiStatus) {
+        < 0.04 => (StatusTransaksi.batal, null),
+        < 0.10 when mundur <= 9 => (
+          StatusTransaksi.ditahan,
+          acak.pilih(_pelangganPiutang),
+        ),
+        _ => (StatusTransaksi.selesai, null),
+      };
+
       hasil.add(
         Transaksi(
           id: 't$nomor',
@@ -255,11 +324,8 @@ List<Transaksi> _bangkitkanTransaksi() {
               : undi < 0.85
               ? MetodeBayar.qris
               : MetodeBayar.transfer,
-          // ~4% batal. Angkanya kecil karena pembatalan memang jarang, dan
-          // daftar yang setengahnya merah tidak mewakili toko mana pun.
-          status: acak.berikutnya() < 0.04
-              ? StatusTransaksi.batal
-              : StatusTransaksi.selesai,
+          status: status,
+          pelanggan: pelanggan,
         ),
       );
       nomor++;
@@ -412,4 +478,13 @@ List<Tagihan> _tagihanAwal() {
 void aturUlangContoh() {
   langgananContoh = _langgananAwal();
   tagihanContoh = _tagihanAwal();
+  // Keempat ini kini bisa diubah dari dalam aplikasi — penjualan menurunkan
+  // stok, formulir menambah produk, dan pengaturan menyunting toko. Tanpa
+  // dikembalikan, satu tes akan mewarisi keadaan tes sebelumnya dan
+  // kegagalannya jadi bergantung pada urutan.
+  kategoriContoh = _kategoriAwal();
+  produkContoh = _produkAwal();
+  transaksiContoh = _bangkitkanTransaksi();
+  tokoContoh = _tokoAwal();
+  strukContoh = _strukAwal();
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/contoh.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
+import '../widgets/ilustrasi.dart';
 import '../widgets/peraga.dart';
 import '../widgets/tombol_pil.dart';
 
@@ -90,6 +91,12 @@ class _LoginScreenState extends State<LoginScreen> {
           builder: (context, batas) {
             final berdampingan = batas.maxWidth >= 900;
 
+            // Ilustrasi hanya muncul kalau tingginya memang cukup. Di ponsel
+            // 568 px ia akan mendorong tombol Masuk ke bawah lipatan, dan
+            // tombol utama yang harus digulir dulu adalah kegagalan, bukan
+            // gaya. Di layar berdampingan ia sudah diwakili bidang identitas.
+            final adaRuang = !berdampingan && batas.maxHeight >= 600;
+
             final formulir = Center(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(
@@ -100,7 +107,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 400),
-                  child: _buatFormulir(context),
+                  child: _buatFormulir(context, denganIlustrasi: adaRuang),
                 ),
               ),
             );
@@ -119,12 +126,16 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buatFormulir(BuildContext context) {
+  Widget _buatFormulir(BuildContext context, {required bool denganIlustrasi}) {
     return Form(
       key: _kunciForm,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (denganIlustrasi) ...[
+            const Ilustrasi(gambar: GambarIlustrasi.etalase, lebarMaks: 236),
+            const SizedBox(height: Jarak.xs),
+          ],
           Text('Masuk ke\ntoko Anda', style: context.teks.displaySmall),
           const SizedBox(height: Jarak.xs2),
           Text(
@@ -232,8 +243,8 @@ class _Label extends StatelessWidget {
   }
 }
 
-/// Bidang identitas untuk layar lebar — struk dan janji produk, benda yang
-/// sama dengan slide pertama alur pembuka.
+/// Bidang identitas untuk layar lebar — etalase dan janji produk, gambar yang
+/// sama dengan yang dilihat pengguna ponsel tepat di atas formulirnya.
 class _BidangIdentitas extends StatelessWidget {
   const _BidangIdentitas();
 
@@ -248,14 +259,7 @@ class _BidangIdentitas extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              const PeragaStruk(
-                namaToko: namaToko,
-                baris: [
-                  ('Kopi Susu Gula Aren', 2, 18000),
-                  ('Pisang Goreng', 1, 12000),
-                  ('Teh Tarik', 1, 14000),
-                ],
-              ),
+              const Ilustrasi(gambar: GambarIlustrasi.etalase, lebarMaks: 320),
               const SizedBox(height: Jarak.lg),
               Text(
                 'Catat\npenjualan,\nbukan kertas',

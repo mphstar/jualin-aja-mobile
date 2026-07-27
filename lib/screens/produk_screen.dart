@@ -8,9 +8,11 @@ import '../util/format.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/bingkai.dart';
 import '../widgets/blok_foto.dart';
+import '../widgets/chip_kategori.dart';
 import '../widgets/kartu.dart';
 import '../widgets/keadaan.dart';
 import '../widgets/rangka.dart';
+import 'form_produk_screen.dart';
 
 /// Master data produk, dikelompokkan per kategori (PRD §1 — "master data
 /// kategori/barang").
@@ -18,8 +20,44 @@ import '../widgets/rangka.dart';
 /// Yang bermasalah naik ke atas: satu kartu ringkasan stok sebelum daftar,
 /// karena "mana yang habis" adalah satu-satunya pertanyaan yang membuat orang
 /// membuka layar ini di tengah jam sibuk.
-class ProdukScreen extends StatelessWidget {
+class ProdukScreen extends StatefulWidget {
   const ProdukScreen({super.key});
+
+  @override
+  State<ProdukScreen> createState() => _ProdukScreenState();
+
+  /// Buka formulir produk.
+  ///
+  /// `produk` null berarti tambah baru. Daftarnya tidak perlu dimuat ulang
+  /// setelahnya: `simpanProduk` menaikkan `revisiData`, dan `Bingkai` yang
+  /// membungkus layar ini sudah mendengarkannya.
+  static Future<void> bukaFormulir(
+    BuildContext context, {
+    List<Kategori>? kategori,
+    Produk? produk,
+  }) async {
+    // Keadaan kosong memanggil ini sebelum daftar kategori sempat dimuat —
+    // di situ ia diambil di sini, bukan dititipkan lewat konstanta dari
+    // `contoh.dart` yang justru melanggar kontrak lapisan data.
+    final daftar = kategori ?? await Repositori.kategori();
+    if (!context.mounted) return;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => FormProdukScreen(kategori: daftar, produk: produk),
+      ),
+    );
+  }
+}
+
+class _ProdukScreenState extends State<ProdukScreen> {
+  /// Kategori yang sedang disaring. Null berarti semua.
+  ///
+  /// Dipegang DI ATAS [Bingkai], bukan di dalam isinya. Menyimpan produk
+  /// menaikkan `revisiData` dan memuat ulang bingkainya — kalau saringan
+  /// tinggal di dalam, ia akan balik ke "Semua" setiap kali satu produk
+  /// disunting, tepat pada saat orang sedang merapikan satu kategori.
+  String? _kategoriId;
 
   @override
   Widget build(BuildContext context) {
@@ -52,35 +90,59 @@ class ProdukScreen extends StatelessWidget {
                 'Tambahkan produk pertama Anda — nama, harga, dan satuan '
                 'sudah cukup untuk mulai berjualan.',
             labelAksi: 'Tambah produk',
-            onAksi: () => _menyusul(context),
+            onAksi: () => ProdukScreen.bukaFormulir(context),
           ),
         ],
       ),
-      isi: (context, data) => _Isi(kategori: data.$1, produk: data.$2),
+      isi: (context, data) => _Isi(
+        kategori: data.$1,
+        produk: data.$2,
+        // Kategori yang sementara ini disaring bisa saja baru dihapus dari
+        // layar Kategori produk. Menahan id yang sudah tidak ada berarti
+        // menampilkan daftar kosong tanpa satu pun chip terlihat aktif.
+        kategoriId: data.$1.any((k) => k.id == _kategoriId) ? _kategoriId : null,
+        onPilihKategori: (id) => setState(() => _kategoriId = id),
+      ),
     );
-  }
-
-  static void _menyusul(BuildContext context) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(content: Text('Formulir produk menyusul.')),
-      );
   }
 }
 
 class _Isi extends StatelessWidget {
-  const _Isi({required this.kategori, required this.produk});
+  const _Isi({
+    required this.kategori,
+    required this.produk,
+    required this.kategoriId,
+    required this.onPilihKategori,
+  });
 
   final List<Kategori> kategori;
   final List<Produk> produk;
+  final String? kategoriId;
+  final ValueChanged<String?> onPilihKategori;
+
+  bool get _disaring => kategoriId != null;
 
   @override
   Widget build(BuildContext context) {
     final padding = paddingHalaman(context);
     final ringkas = MediaQuery.sizeOf(context).width < Ambang.ringkas;
-    final habis = produk.where((p) => p.habis).length;
-    final menipis = produk.where((p) => p.menipis).length;
+
+    // Bagian yang ditampilkan mengikuti saringan, dan ringkasan stoknya
+    // dihitung dari yang tampil saja. Kartu yang tetap menghitung seluruh
+    // toko sementara daftarnya cuma satu kategori adalah kartu yang
+    // membantah daftar tepat di bawahnya.
+    final terlihat = _disaring
+        ? [
+            for (final k in kategori)
+              if (k.id == kategoriId) k,
+          ]
+        : kategori;
+    final tampil = _disaring
+        ? [
+            for (final p in produk)
+              if (p.kategoriId == kategoriId) p,
+          ]
+        : produk;
 
     return CustomScrollView(
       slivers: [
@@ -94,19 +156,44 @@ class _Isi extends StatelessWidget {
           sliver: SliverToBoxAdapter(
             child: KepalaHalaman(
               judul: 'Produk',
-              keterangan:
-                  '${produk.length} produk dalam ${kategori.length} kategori.',
+              keterangan: _disaring
+                  ? '${tampil.length} produk di ${terlihat.first.nama}.'
+                  : '${produk.length} produk dalam '
+                        '${kategori.length} kategori.',
               aksi: ringkas
                   ? IconButton.filled(
-                      onPressed: () => ProdukScreen._menyusul(context),
+                      onPressed: () => ProdukScreen.bukaFormulir(
+                        context,
+                        kategori: kategori,
+                      ),
                       icon: const Icon(Icons.add),
                       tooltip: 'Tambah produk',
                     )
                   : FilledButton.icon(
-                      onPressed: () => ProdukScreen._menyusul(context),
+                      onPressed: () => ProdukScreen.bukaFormulir(
+                        context,
+                        kategori: kategori,
+                      ),
                       icon: const Icon(Icons.add, size: 18),
                       label: const Text('Tambah produk'),
                     ),
+            ),
+          ),
+        ),
+
+        // Bentuk yang sama persis dengan baris kategori di kasir. Dua layar
+        // yang menyaring hal yang sama dengan dua bentuk berbeda memaksa orang
+        // mempelajari saringannya dua kali.
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(padding.left, 0, padding.right, Jarak.xs),
+          sliver: SliverToBoxAdapter(
+            child: BarisKategori(
+              terpilih: kategoriId,
+              onPilih: onPilihKategori,
+              item: [
+                (null, 'Semua', Icons.grid_view_outlined),
+                for (final k in kategori) (k.id, k.nama, k.ikon),
+              ],
             ),
           ),
         ),
@@ -115,37 +202,54 @@ class _Isi extends StatelessWidget {
           padding: EdgeInsets.symmetric(horizontal: padding.left),
           sliver: SliverToBoxAdapter(
             child: _RingkasStok(
-              total: produk.length,
-              habis: habis,
-              menipis: menipis,
+              total: tampil.length,
+              habis: tampil.where((p) => p.habis).length,
+              menipis: tampil.where((p) => p.menipis).length,
             ),
           ),
         ),
 
-        for (final k in kategori) ...[
+        for (final k in terlihat) ...[
+          // Judul bagian dilewati saat disaring: chip yang menyala di atas
+          // sudah menyebut nama kategorinya, dan mengulanginya di bawah cuma
+          // memakan baris yang bisa dipakai produk.
+          if (!_disaring)
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                padding.left,
+                Jarak.md,
+                padding.right,
+                0,
+              ),
+              sliver: SliverToBoxAdapter(
+                child: _JudulKategori(
+                  kategori: k,
+                  jumlah: produk.where((p) => p.kategoriId == k.id).length,
+                ),
+              ),
+            ),
           SliverPadding(
             padding: EdgeInsets.fromLTRB(
               padding.left,
-              Jarak.md,
+              _disaring ? Jarak.md : 0,
               padding.right,
               0,
             ),
             sliver: SliverToBoxAdapter(
-              child: _JudulKategori(
-                kategori: k,
-                jumlah: produk.where((p) => p.kategoriId == k.id).length,
-              ),
-            ),
-          ),
-          SliverPadding(
-            padding: EdgeInsets.symmetric(horizontal: padding.left),
-            sliver: SliverToBoxAdapter(
-              child: KartuDaftar(
-                anak: [
-                  for (final p in produk.where((p) => p.kategoriId == k.id))
-                    _BarisProduk(produk: p),
-                ],
-              ),
+              // Kategori yang baru dibuat belum punya isi. Kartu kosong
+              // setinggi satu garis terbaca seperti daftar yang gagal memuat,
+              // jadi keadaan kosongnya dikatakan — sekalian dengan jalan
+              // keluarnya.
+              child: produk.any((p) => p.kategoriId == k.id)
+                  ? KartuDaftar(
+                      anak: [
+                        for (final p in produk.where(
+                          (p) => p.kategoriId == k.id,
+                        ))
+                          _BarisProduk(kategori: kategori, produk: p),
+                      ],
+                    )
+                  : _KategoriKosong(kategori: k, semua: kategori),
             ),
           ),
         ],
@@ -264,10 +368,53 @@ class _JudulKategori extends StatelessWidget {
   }
 }
 
+class _KategoriKosong extends StatelessWidget {
+  const _KategoriKosong({required this.kategori, required this.semua});
+
+  final Kategori kategori;
+  final List<Kategori> semua;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: Jarak.xs,
+          vertical: Jarak.xs,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Belum ada produk di ${kategori.nama}.',
+                style: context.teks.bodySmall?.copyWith(
+                  color: context.warna.onSurfaceVariant,
+                ),
+              ),
+            ),
+            const SizedBox(width: Jarak.xs2),
+            TextButton(
+              onPressed: () =>
+                  ProdukScreen.bukaFormulir(context, kategori: semua),
+              style: TextButton.styleFrom(
+                minimumSize: const Size(0, 32),
+                padding: const EdgeInsets.symmetric(horizontal: Jarak.xs2),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text('Tambah'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _BarisProduk extends StatelessWidget {
-  const _BarisProduk({required this.produk});
+  const _BarisProduk({required this.produk, required this.kategori});
 
   final Produk produk;
+  final List<Kategori> kategori;
 
   @override
   Widget build(BuildContext context) {
@@ -293,7 +440,11 @@ class _BarisProduk extends StatelessWidget {
       keterangan: teksStok,
       warnaKeterangan: warnaStok,
       akhiran: rupiah(produk.hargaJual),
-      onTekan: () => ProdukScreen._menyusul(context),
+      onTekan: () => ProdukScreen.bukaFormulir(
+        context,
+        kategori: kategori,
+        produk: produk,
+      ),
     );
   }
 }

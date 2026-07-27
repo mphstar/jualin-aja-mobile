@@ -4,12 +4,12 @@ import '../data/contoh.dart';
 import '../data/model.dart';
 import '../data/repositori.dart';
 import '../theme/app_theme.dart';
+import 'bayar_screen.dart';
 import '../theme/tokens.dart';
 import '../util/format.dart';
 import '../widgets/bingkai.dart';
 import '../widgets/blok_foto.dart';
 import '../widgets/chip_kategori.dart';
-import '../widgets/kartu.dart';
 import '../widgets/keadaan.dart';
 import '../widgets/rangka.dart';
 
@@ -81,27 +81,34 @@ class _KasirScreenState extends State<KasirScreen> {
 
   void _kosongkan() => setState(_keranjang.clear);
 
+  /// Buka layar pembayaran.
+  ///
+  /// Keranjang baru dikosongkan SETELAH layar itu selesai dan transaksinya
+  /// benar-benar tersimpan — kalau dikosongkan lebih dulu, kasir yang menekan
+  /// batal atau kehilangan koneksi akan kehilangan seluruh pesanannya.
   Future<void> _bayar() async {
-    final jumlah = _jumlahItem;
-    final total = _total;
-    final metode = await showModalBottomSheet<MetodeBayar>(
-      context: context,
-      showDragHandle: true,
-      builder: (_) => _LembarBayar(total: total),
-    );
-    if (metode == null || !mounted) return;
+    final item = _isiKeranjang;
+    if (item.isEmpty) return;
 
-    _kosongkan();
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            'Terjual $jumlah item · ${rupiah(total)} · ${metode.label}',
-          ),
-          action: SnackBarAction(label: 'Cetak', onPressed: () {}),
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => BayarScreen(
+          item: item,
+          nomorStruk: Repositori.nomorStrukBerikutnya(),
         ),
-      );
+      ),
+    );
+    if (!mounted) return;
+
+    // Transaksi tersimpan kalau daftar transaksi bertambah; layar bayar sendiri
+    // tidak perlu melaporkan apa pun kembali ke sini.
+    final tersimpan =
+        transaksiContoh.isNotEmpty &&
+        transaksiContoh.first.nomorStruk != _strukSaatMasuk;
+    // Daftar produknya sendiri tidak perlu dimuat ulang di sini: menyimpan
+    // transaksi menaikkan `revisiData`, dan `Bingkai` yang membungkus layar ini
+    // sudah mendengarkannya — termasuk untuk memperbarui stok yang baru turun.
+    if (tersimpan) _kosongkan();
   }
 
   void _bukaKeranjang() {
@@ -134,14 +141,14 @@ class _KasirScreenState extends State<KasirScreen> {
     );
   }
 
-  /// Nomor struk yang akan dipakai transaksi ini. Diturunkan dari struk
-  /// terakhir, bukan dikarang — kalau angkanya tampil di layar, ia harus benar.
-  String get _strukBerikutnya {
-    final terakhir = transaksiContoh.isEmpty
-        ? 0
-        : int.tryParse(transaksiContoh.first.nomorStruk.split('/').last) ?? 0;
-    return 'STR/2026/${(terakhir + 1).toString().padLeft(4, '0')}';
-  }
+  /// Nomor struk yang akan dipakai transaksi ini — dihitung Repositori dari
+  /// struk terakhir, bukan dikarang di layar.
+  String get _strukBerikutnya => Repositori.nomorStrukBerikutnya();
+
+  /// Nomor struk terakhir saat layar bayar dibuka, untuk mengetahui apakah
+  /// transaksinya jadi tersimpan.
+  String get _strukSaatMasuk =>
+      transaksiContoh.isEmpty ? '' : transaksiContoh.first.nomorStruk;
 
   Future<void> _tanyaKosongkan() async {
     // Mengosongkan keranjang membuang pekerjaan yang tidak bisa dikembalikan,
@@ -988,61 +995,6 @@ class _KakiKeranjang extends StatelessWidget {
                     child: const Text('Bayar'),
                   ),
                 ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Lembar pilih metode pembayaran.
-class _LembarBayar extends StatelessWidget {
-  const _LembarBayar({required this.total});
-
-  final int total;
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(Jarak.sm, 0, Jarak.sm, Jarak.sm),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Bayar ${rupiah(total)}',
-              style: context.teks.titleLarge,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Pilih metode. Struk bisa dicetak setelah transaksi tersimpan.',
-              style: context.teks.bodySmall?.copyWith(
-                color: context.warna.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: Jarak.sm),
-            KartuDaftar(
-              anak: [
-                for (final m in MetodeBayar.values)
-                  BarisDaftar(
-                    awalan: Icon(
-                      switch (m) {
-                        MetodeBayar.tunai => Icons.payments_outlined,
-                        MetodeBayar.qris => Icons.qr_code_2,
-                        MetodeBayar.transfer => Icons.account_balance_outlined,
-                      },
-                      size: 24,
-                      color: context.warna.onSurface,
-                    ),
-                    judul: m.label,
-                    onTekan: () => Navigator.of(context).pop(m),
-                  ),
               ],
             ),
           ],

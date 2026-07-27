@@ -118,6 +118,8 @@ class RingkasanBeranda {
     required this.langganan,
     required this.produkHabis,
     required this.produkMenipis,
+    required this.piutangJumlah,
+    required this.piutangTotal,
   });
 
   final int omzet;
@@ -134,8 +136,16 @@ class RingkasanBeranda {
   final int produkHabis;
   final int produkMenipis;
 
+  /// Piutang **seluruh riwayat**, bukan hari ini saja. Utang yang dibuat
+  /// kemarin tidak berhenti jadi utang hanya karena hari berganti — dan
+  /// membatasinya ke hari ini akan membuat daftarnya menghilang dari Beranda
+  /// tepat pada pagi ketika ia paling perlu ditagih.
+  final int piutangJumlah;
+  final int piutangTotal;
+
   bool get belumAdaPenjualan => transaksi == 0;
   bool get adaMasalahStok => produkHabis > 0 || produkMenipis > 0;
+  bool get adaPiutang => piutangJumlah > 0;
 
   /// Selisih persen terhadap kemarin, atau **null** kalau kemarin nol.
   ///
@@ -179,6 +189,7 @@ abstract final class Repositori {
       final hariIni = transaksiContoh
           .where((t) => t.dihitung && _samaHari(t.waktu, kini))
           .toList();
+      final belumDibayar = transaksiContoh.where((t) => t.piutang).toList();
 
       return RingkasanBeranda(
         omzet: hariIni.fold(0, (n, t) => n + t.total),
@@ -193,6 +204,8 @@ abstract final class Repositori {
         langganan: langgananContoh,
         produkHabis: produkContoh.where((p) => p.habis).length,
         produkMenipis: produkContoh.where((p) => p.menipis).length,
+        piutangJumlah: belumDibayar.length,
+        piutangTotal: belumDibayar.fold(0, (n, t) => n + t.total),
       );
     },
     kalauKosong: RingkasanBeranda(
@@ -205,6 +218,8 @@ abstract final class Repositori {
       langganan: langgananContoh,
       produkHabis: 0,
       produkMenipis: 0,
+      piutangJumlah: 0,
+      piutangTotal: 0,
     ),
   );
 
@@ -282,6 +297,255 @@ abstract final class Repositori {
     revisiData.value++;
     return lunas;
   }, kalauKosong: tagihan);
+
+  // -------------------------------------------------------------------------
+  // Penjualan
+  // -------------------------------------------------------------------------
+
+  /// Nomor struk berikutnya, diturunkan dari struk terakhir — bukan dikarang.
+  /// Kalau angkanya tampil di layar, ia harus benar.
+  static String nomorStrukBerikutnya() {
+    final terakhir = transaksiContoh.isEmpty
+        ? 0
+        : int.tryParse(transaksiContoh.first.nomorStruk.split('/').last) ?? 0;
+    return 'STR/2026/${(terakhir + 1).toString().padLeft(4, '0')}';
+  }
+
+  /// Simpan satu penjualan.
+  ///
+  /// Stok produk yang dilacak ikut berkurang di sini — itu janji yang diucapkan
+  /// layar pembuka ("stok ikut turun sendiri"), dan janji yang hanya ditulis di
+  /// slide adalah janji yang tidak ditepati.
+  ///
+  /// Berlaku juga untuk transaksi `ditahan`: barangnya sudah keluar dari rak
+  /// meski uangnya belum masuk. Yang tidak ikut naik hanyalah omzet.
+  static Future<Transaksi> simpanTransaksi({
+    required List<ItemKeranjang> item,
+    required MetodeBayar metode,
+    required StatusTransaksi status,
+    String? pelanggan,
+    int? uangDiterima,
+  }) async {
+    await _jeda();
+    if (modeUji.value == ModeUji.galat) {
+      throw const GagalMuat('Transaksi gagal disimpan. Coba lagi.');
+    }
+
+    final transaksi = Transaksi(
+      id: 'trx${DateTime.now().microsecondsSinceEpoch}',
+      nomorStruk: nomorStrukBerikutnya(),
+      waktu: DateTime.now(),
+      baris: [
+        for (final i in item)
+          BarisStruk(
+            produkId: i.produk.id,
+            nama: i.produk.nama,
+            hargaSatuan: i.produk.hargaJual,
+            jumlah: i.jumlah,
+          ),
+      ],
+      metode: metode,
+      status: status,
+      pelanggan: pelanggan,
+      uangDiterima: uangDiterima,
+    );
+
+    final terjual = <String, int>{for (final i in item) i.produk.id: i.jumlah};
+    produkContoh = [
+      for (final p in produkContoh)
+        if (p.lacakStok && terjual.containsKey(p.id))
+          // Tidak pernah negatif: stok minus adalah angka yang tidak berarti
+          // apa-apa bagi pemilik toko, dan hanya membuat laporan terlihat rusak.
+          p.salin(stok: (p.stok - terjual[p.id]!).clamp(0, 1 << 31))
+        else
+          p,
+    ];
+
+    transaksiContoh = [transaksi, ...transaksiContoh];
+    revisiData.value++;
+    return transaksi;
+  }
+
+  /// Lunasi transaksi yang tadinya "bayar nanti".
+  ///
+  /// Waktunya tidak diubah — omzet tetap tercatat di hari barangnya keluar,
+  /// bukan di hari uangnya masuk. Memindahkannya akan membuat laporan hari
+  /// kemarin berubah setelah ditutup.
+  static Future<Transaksi> lunasiTransaksi(
+    Transaksi transaksi, {
+    required MetodeBayar metode,
+    int? uangDiterima,
+  }) async {
+    await _jeda();
+    if (modeUji.value == ModeUji.galat) {
+      throw const GagalMuat('Pelunasan gagal disimpan. Coba lagi.');
+    }
+
+    final lunas = transaksi.salin(
+      metode: metode,
+      status: StatusTransaksi.selesai,
+      uangDiterima: uangDiterima,
+    );
+    transaksiContoh = [
+      for (final t in transaksiContoh)
+        if (t.id == transaksi.id) lunas else t,
+    ];
+    revisiData.value++;
+    return lunas;
+  }
+
+  /// Piutang yang belum ditagih, terbaru di depan.
+  static Future<List<Transaksi>> piutang() => _kirim(
+    () => transaksiContoh.where((t) => t.piutang).toList(),
+    kalauKosong: const [],
+  );
+
+  // -------------------------------------------------------------------------
+  // Master data & pengaturan
+  // -------------------------------------------------------------------------
+
+  /// Tambah produk baru, atau ganti yang sudah ada bila id-nya cocok.
+  static Future<Produk> simpanProduk(Produk produk) async {
+    await _jeda();
+    if (modeUji.value == ModeUji.galat) {
+      throw const GagalMuat('Produk gagal disimpan. Coba lagi.');
+    }
+
+    final ada = produkContoh.any((p) => p.id == produk.id);
+    produkContoh = ada
+        ? [
+            for (final p in produkContoh)
+              if (p.id == produk.id) produk else p,
+          ]
+        : [...produkContoh, produk];
+
+    revisiData.value++;
+    return produk;
+  }
+
+  /// Tambah kategori baru, atau ganti yang sudah ada bila id-nya cocok.
+  ///
+  /// Yang baru masuk ke BELAKANG, bukan depan. Urutan kategori menentukan
+  /// urutan chip di kasir, dan kategori yang baru dibuat menyerobot ke posisi
+  /// pertama berarti memindahkan tombol yang sudah dihafal jari kasir.
+  static Future<Kategori> simpanKategori(Kategori kategori) async {
+    await _jeda();
+    if (modeUji.value == ModeUji.galat) {
+      throw const GagalMuat('Kategori gagal disimpan. Coba lagi.');
+    }
+
+    final ada = kategoriContoh.any((k) => k.id == kategori.id);
+    kategoriContoh = ada
+        ? [
+            for (final k in kategoriContoh)
+              if (k.id == kategori.id) kategori else k,
+          ]
+        : [...kategoriContoh, kategori];
+
+    revisiData.value++;
+    return kategori;
+  }
+
+  /// Hapus kategori, sekaligus **memindahkan produknya**.
+  ///
+  /// [pindahkanKe] wajib diisi kalau kategorinya masih berisi produk. Produk
+  /// tanpa kategori yang ada adalah produk yang hilang dari layar Produk dan
+  /// dari kasir sekaligus — masih tersimpan, tapi tidak bisa dijual maupun
+  /// disunting. Menghapus diam-diam jauh lebih merusak daripada menolak
+  /// menghapus.
+  ///
+  /// Kategori terakhir tidak boleh dihapus: formulir produk selalu butuh
+  /// setidaknya satu kategori untuk dipilih.
+  static Future<void> hapusKategori(String id, {String? pindahkanKe}) async {
+    await _jeda();
+    if (modeUji.value == ModeUji.galat) {
+      throw const GagalMuat('Kategori gagal dihapus. Coba lagi.');
+    }
+    if (kategoriContoh.length <= 1) {
+      throw const GagalMuat('Kategori terakhir tidak bisa dihapus.');
+    }
+
+    final punyaProduk = produkContoh.any((p) => p.kategoriId == id);
+    if (punyaProduk) {
+      if (pindahkanKe == null || pindahkanKe == id) {
+        throw const GagalMuat('Pilih dulu kategori tujuan produknya.');
+      }
+      produkContoh = [
+        for (final p in produkContoh)
+          if (p.kategoriId == id) p.salin(kategoriId: pindahkanKe) else p,
+      ];
+    }
+
+    kategoriContoh = [
+      for (final k in kategoriContoh)
+        if (k.id != id) k,
+    ];
+    revisiData.value++;
+  }
+
+  /// Simpan urutan kategori yang baru.
+  ///
+  /// Diterima sebagai daftar utuh, bukan "pindahkan indeks A ke B": daftar
+  /// utuh tidak bisa salah menafsirkan pergeseran indeks setelah elemen
+  /// diangkat — kesalahan yang selalu meleset satu posisi dan selalu baru
+  /// ketahuan setelah dipakai.
+  ///
+  /// Sengaja tanpa jeda buatan **dan tanpa menaikkan [revisiData]**: barisnya
+  /// sudah berpindah di bawah jari saat dilepas. Rangka pemuatan yang menyusul
+  /// sesudahnya akan terbaca seperti perpindahan yang dibatalkan lalu diulang
+  /// — dan tidak ada layar lain yang sedang terbuka untuk diberi tahu, karena
+  /// pengurutan hanya bisa dilakukan dari layar Kategori itu sendiri.
+  static Future<void> urutkanKategori(List<Kategori> urutan) async {
+    if (modeUji.value == ModeUji.galat) {
+      throw const GagalMuat('Urutan kategori gagal disimpan. Coba lagi.');
+    }
+    kategoriContoh = List.of(urutan);
+  }
+
+  /// Id kategori baru, menaik seperti id produk.
+  static String idKategoriBerikutnya() {
+    final maks = kategoriContoh
+        .map((k) => int.tryParse(k.id.replaceFirst('k', '')) ?? 0)
+        .fold(0, (a, b) => a > b ? a : b);
+    return 'k${maks + 1}';
+  }
+
+  /// Id produk baru. Menaik, bukan acak — supaya urutan tambah masih terbaca
+  /// dari datanya saat ada yang perlu ditelusuri.
+  static String idProdukBerikutnya() {
+    final maks = produkContoh
+        .map((p) => int.tryParse(p.id.replaceFirst('p', '')) ?? 0)
+        .fold(0, (a, b) => a > b ? a : b);
+    return 'p${maks + 1}';
+  }
+
+  static Future<Toko> toko() =>
+      _kirim(() => tokoContoh, kalauKosong: tokoContoh);
+
+  static Future<Toko> simpanToko(Toko toko) async {
+    await _jeda();
+    if (modeUji.value == ModeUji.galat) {
+      throw const GagalMuat('Data toko gagal disimpan. Coba lagi.');
+    }
+    tokoContoh = toko;
+    revisiData.value++;
+    return toko;
+  }
+
+  static Future<PengaturanStruk> pengaturanStruk() =>
+      _kirim(() => strukContoh, kalauKosong: strukContoh);
+
+  static Future<PengaturanStruk> simpanPengaturanStruk(
+    PengaturanStruk pengaturan,
+  ) async {
+    await _jeda();
+    if (modeUji.value == ModeUji.galat) {
+      throw const GagalMuat('Pengaturan struk gagal disimpan. Coba lagi.');
+    }
+    strukContoh = pengaturan;
+    revisiData.value++;
+    return pengaturan;
+  }
 
   /// Riwayat, boleh disaring. Penyaringan dikerjakan DI SINI, bukan di layar —
   /// supaya saat penyaringan pindah ke sisi server nanti, layarnya tidak ikut

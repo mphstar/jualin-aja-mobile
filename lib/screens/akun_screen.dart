@@ -12,6 +12,9 @@ import '../widgets/ikon_kotak.dart';
 import '../widgets/kartu.dart';
 import '../widgets/lencana.dart';
 import '../widgets/rangka.dart';
+import 'kategori_screen.dart';
+import 'struk_screen.dart';
+import 'toko_screen.dart';
 import 'perpanjang_screen.dart';
 import 'riwayat_bayar_screen.dart';
 
@@ -53,37 +56,53 @@ class AkunScreen extends StatelessWidget {
         const SizedBox(height: Jarak.md),
 
         const JudulBagian('Toko'),
-        KartuDaftar(
-          anak: [
-            _BarisMenu(
-              ikon: Icons.storefront_outlined,
-              judul: 'Data toko',
-              keterangan: '$jenisUsaha · $kotaToko',
-              onTekan: () => _menyusul(context, 'Data toko'),
-            ),
-            _BarisMenu(
-              ikon: Icons.receipt_outlined,
-              judul: 'Struk & printer',
-              keterangan: 'Kepala struk dan perangkat cetak',
-              onTekan: () => _menyusul(context, 'Pengaturan struk'),
-            ),
-            _BarisMenu(
-              ikon: Icons.category_outlined,
-              judul: 'Kategori produk',
-              keterangan: '${kategoriContoh.length} kategori',
-              onTekan: () => _menyusul(context, 'Kelola kategori'),
-            ),
-            _BarisMenu(
-              ikon: Icons.receipt_long_outlined,
-              judul: 'Riwayat pembayaran',
-              keterangan: 'Tagihan langganan dan statusnya',
-              onTekan: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const RiwayatBayarScreen(),
+        // Dua baris di bawah menampilkan angka yang bisa diubah dari layar
+        // yang mereka buka sendiri. Tanpa mendengarkan [revisiData], daftar
+        // ini masih menulis "4 kategori" tepat setelah pengguna menambah yang
+        // kelima — dan menu yang membantah layar yang baru saja ditutup adalah
+        // menu yang berhenti dipercaya.
+        ListenableBuilder(
+          listenable: revisiData,
+          builder: (context, _) => KartuDaftar(
+            anak: [
+              _BarisMenu(
+                ikon: Icons.storefront_outlined,
+                judul: 'Data toko',
+                keterangan: '${tokoContoh.jenisUsaha} · $kotaToko',
+                onTekan: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const TokoScreen()),
                 ),
               ),
-            ),
-          ],
+              _BarisMenu(
+                ikon: Icons.receipt_outlined,
+                judul: 'Struk & printer',
+                keterangan: 'Kepala struk dan perangkat cetak',
+                onTekan: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const StrukScreen()),
+                ),
+              ),
+              _BarisMenu(
+                ikon: Icons.category_outlined,
+                judul: 'Kategori produk',
+                keterangan: '${kategoriContoh.length} kategori',
+                onTekan: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const KategoriScreen(),
+                  ),
+                ),
+              ),
+              _BarisMenu(
+                ikon: Icons.receipt_long_outlined,
+                judul: 'Riwayat pembayaran',
+                keterangan: 'Tagihan langganan dan statusnya',
+                onTekan: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const RiwayatBayarScreen(),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: Jarak.md),
 

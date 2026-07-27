@@ -5,10 +5,15 @@ import 'package:mobile/data/contoh.dart';
 import 'package:mobile/data/model.dart';
 import 'package:mobile/data/repositori.dart';
 import 'package:mobile/main.dart';
+import 'package:mobile/screens/bayar_screen.dart';
+import 'package:mobile/screens/form_produk_screen.dart';
 import 'package:mobile/screens/kasir_screen.dart';
+import 'package:mobile/screens/struk_screen.dart';
+import 'package:mobile/screens/toko_screen.dart';
 import 'package:mobile/theme/tokens.dart';
 import 'package:mobile/util/format.dart';
 import 'package:mobile/widgets/batang.dart';
+import 'package:mobile/widgets/ilustrasi.dart';
 import 'package:mobile/widgets/peraga.dart';
 import 'package:mobile/widgets/rangka.dart';
 
@@ -98,14 +103,17 @@ void main() {
     await tester.pumpWidget(const AplikasiPos());
     await tenang(tester);
 
-    // Ketiga slide: struk, kartu stok, panel laporan.
-    expect(find.byType(PeragaStruk), findsOneWidget);
+    // Ketiga slide: ponsel, rak stok, panel laporan.
+    Ilustrasi ilustrasiSekarang() =>
+        tester.widget<Ilustrasi>(find.byType(Ilustrasi));
+
+    expect(ilustrasiSekarang().gambar, GambarIlustrasi.kasir);
     expect(find.text('Foto belum ada'), findsNothing);
 
-    for (final peraga in [PeragaStok, PeragaLaporan]) {
+    for (final gambar in [GambarIlustrasi.rak, GambarIlustrasi.laporan]) {
       await tester.drag(find.byType(PageView), const Offset(-400, 0));
       await tenang(tester);
-      expect(find.byType(peraga), findsOneWidget);
+      expect(ilustrasiSekarang().gambar, gambar);
       expect(find.text('Foto belum ada'), findsNothing);
     }
 
@@ -691,5 +699,275 @@ void main() {
 
   test('ambang tata letak berurutan', () {
     expect(Ambang.ringkas, lessThan(Ambang.luas));
+  });
+
+  // -------------------------------------------------------------------------
+  // Penjualan: bayar, kembalian, dan bayar nanti
+  // -------------------------------------------------------------------------
+
+  /// Tambahkan satu produk ke keranjang lewat tombol `+` di kartunya.
+  ///
+  /// Kartunya sengaja TIDAK bisa diketuk seluruhnya — di kasir yang dipakai
+  /// sambil berdiri, seluruh kartu yang jadi tombol berarti tiap salah sentuh
+  /// menambah pesanan. Jadi tesnya pun harus menekan tombol yang sama dengan
+  /// yang ditekan kasir.
+  Future<void> tambahKeKeranjang(WidgetTester tester, Produk produk) async {
+    await ketuk(
+      tester,
+      find
+          .descendant(
+            of: find.ancestor(
+              of: find.text(produk.nama),
+              matching: find.byType(Card),
+            ),
+            matching: find.byIcon(Icons.add),
+          )
+          .first,
+    );
+  }
+
+  /// Buka kasir dengan satu produk di keranjang, lalu lanjut ke layar bayar.
+  Future<Produk> keBayarKasir(WidgetTester tester, {Produk? pakai}) async {
+    await masuk(tester);
+    await ketuk(tester, find.widgetWithText(FilledButton, 'Buka kasir'));
+
+    final produk = pakai ?? produkContoh.firstWhere((p) => !p.habis);
+    await tambahKeKeranjang(tester, produk);
+    await ketuk(tester, find.widgetWithText(FilledButton, 'Bayar'));
+    return produk;
+  }
+
+  testWidgets('layar bayar menghitung kembalian, dan menolak uang kurang', (
+    tester,
+  ) async {
+    ukuran(tester, 400, 900);
+    final produk = await keBayarKasir(tester);
+
+    expect(find.byType(BayarScreen), findsOneWidget);
+
+    final simpan = find.widgetWithText(FilledButton, 'Simpan transaksi');
+
+    // Belum ada uang diterima: tunai tidak boleh disimpan.
+    expect(tester.widget<FilledButton>(simpan).onPressed, isNull);
+
+    // Kurang dari total juga tidak.
+    await tester.enterText(find.byType(TextField).first, '1000');
+    await tenang(tester);
+    expect(find.text('Kurang'), findsOneWidget);
+    expect(tester.widget<FilledButton>(simpan).onPressed, isNull);
+
+    // Uang pas: boleh, dan kembaliannya nol.
+    await ketuk(tester, find.text('Uang pas'));
+    expect(tester.widget<FilledButton>(simpan).onPressed, isNotNull);
+
+    await ketuk(tester, simpan);
+    expect(find.text('Transaksi tersimpan'), findsOneWidget);
+    expect(find.text('UANG PAS'), findsOneWidget);
+
+    final tersimpan = transaksiContoh.first;
+    expect(tersimpan.status, StatusTransaksi.selesai);
+    expect(tersimpan.total, produk.hargaJual);
+    expect(tersimpan.kembalian, 0);
+  });
+
+  testWidgets('kembalian yang benar ditampilkan besar setelah tersimpan', (
+    tester,
+  ) async {
+    ukuran(tester, 400, 900);
+    final produk = await keBayarKasir(tester);
+
+    // Pintasan pecahan selalu lebih besar dari total, jadi selalu ada kembalian.
+    await ketuk(tester, find.byType(ActionChip).last);
+    await ketuk(tester, find.widgetWithText(FilledButton, 'Simpan transaksi'));
+
+    final tersimpan = transaksiContoh.first;
+    expect(tersimpan.kembalian, greaterThan(0));
+    expect(tersimpan.kembalian, tersimpan.uangDiterima! - produk.hargaJual);
+    expect(find.text('KEMBALIAN'), findsOneWidget);
+    expect(find.text(rupiah(tersimpan.kembalian!)), findsOneWidget);
+  });
+
+  testWidgets('penjualan menurunkan stok produk yang dilacak', (tester) async {
+    ukuran(tester, 400, 900);
+    final target = produkContoh.firstWhere((p) => p.lacakStok && !p.habis);
+    final stokAwal = target.stok;
+
+    final produk = await keBayarKasir(tester, pakai: target);
+    await ketuk(tester, find.text('Uang pas'));
+    await ketuk(tester, find.widgetWithText(FilledButton, 'Simpan transaksi'));
+
+    final sesudah = produkContoh.firstWhere((p) => p.id == produk.id);
+    expect(sesudah.stok, stokAwal - 1);
+  });
+
+  testWidgets('bayar nanti mewajibkan nama dan tidak menaikkan omzet', (
+    tester,
+  ) async {
+    ukuran(tester, 400, 900);
+    final produk = await keBayarKasir(tester);
+
+    final omzetSebelum = transaksiContoh
+        .where((t) => t.dihitung)
+        .fold(0, (n, t) => n + t.total);
+
+    await ketuk(tester, find.widgetWithText(TextButton, 'Bayar nanti'));
+    await ketuk(
+      tester,
+      find.widgetWithText(FilledButton, 'Catat sebagai piutang'),
+    );
+
+    // Nama masih kosong: lembar tidak boleh tertutup.
+    expect(find.text('Nama pembeli wajib diisi.'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).last, 'Bu Rina');
+    await tenang(tester);
+    await ketuk(
+      tester,
+      find.widgetWithText(FilledButton, 'Catat sebagai piutang'),
+    );
+
+    expect(find.text('Dicatat sebagai piutang'), findsOneWidget);
+
+    final tersimpan = transaksiContoh.first;
+    expect(tersimpan.status, StatusTransaksi.ditahan);
+    expect(tersimpan.pelanggan, 'Bu Rina');
+    expect(tersimpan.dihitung, isFalse);
+    expect(tersimpan.total, produk.hargaJual);
+
+    // Barang keluar, uang belum masuk — omzet tidak boleh ikut naik.
+    final omzetSesudah = transaksiContoh
+        .where((t) => t.dihitung)
+        .fold(0, (n, t) => n + t.total);
+    expect(omzetSesudah, omzetSebelum);
+  });
+
+  testWidgets('piutang bisa dilunasi, dan baru saat itu jadi omzet', (
+    tester,
+  ) async {
+    ukuran(tester, 400, 900);
+    await keBayarKasir(tester);
+
+    await ketuk(tester, find.widgetWithText(TextButton, 'Bayar nanti'));
+    await tester.enterText(find.byType(TextField).last, 'Pak Budi');
+    await tenang(tester);
+    await ketuk(
+      tester,
+      find.widgetWithText(FilledButton, 'Catat sebagai piutang'),
+    );
+
+    final piutang = transaksiContoh.first;
+    expect(piutang.piutang, isTrue);
+
+    await Repositori.lunasiTransaksi(piutang, metode: MetodeBayar.tunai);
+
+    final sesudah = transaksiContoh.firstWhere((t) => t.id == piutang.id);
+    expect(sesudah.status, StatusTransaksi.selesai);
+    expect(sesudah.dihitung, isTrue);
+    // Waktunya tidak boleh bergeser: omzet tetap tercatat di hari barang keluar.
+    expect(sesudah.waktu, piutang.waktu);
+  });
+
+  // -------------------------------------------------------------------------
+  // Formulir produk
+  // -------------------------------------------------------------------------
+
+  testWidgets('formulir produk menolak harga nol dan menyimpan yang sah', (
+    tester,
+  ) async {
+    ukuran(tester, 400, 900);
+    await masuk(tester);
+    await keTab(tester, 'Produk');
+    await ketuk(tester, find.byTooltip('Tambah produk'));
+
+    expect(find.byType(FormProdukScreen), findsOneWidget);
+
+    final jumlahAwal = produkContoh.length;
+    await ketuk(tester, find.widgetWithText(FilledButton, 'Tambah produk'));
+
+    // Nama dan harga masih kosong — tidak ada yang boleh tersimpan.
+    expect(find.text('Nama produk wajib diisi.'), findsOneWidget);
+    expect(find.text('Harga jual harus lebih dari nol.'), findsOneWidget);
+    expect(produkContoh.length, jumlahAwal);
+
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Nama produk'),
+      'Es Teh Manis',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Harga jual'),
+      '8000',
+    );
+    await tenang(tester);
+    await ketuk(tester, find.widgetWithText(FilledButton, 'Tambah produk'));
+
+    expect(produkContoh.length, jumlahAwal + 1);
+    final baru = produkContoh.last;
+    expect(baru.nama, 'Es Teh Manis');
+    expect(baru.hargaJual, 8000);
+    // Stok tidak dilacak secara bawaan, jadi angkanya nol dan bukan sisa isian.
+    expect(baru.lacakStok, isFalse);
+    expect(baru.stok, 0);
+  });
+
+  // -------------------------------------------------------------------------
+  // Pengaturan toko & struk
+  // -------------------------------------------------------------------------
+
+  testWidgets('data toko tersimpan dan ikut terbawa ke pratinjau struk', (
+    tester,
+  ) async {
+    ukuran(tester, 400, 900);
+    await masuk(tester);
+    await keTab(tester, 'Akun');
+    await ketuk(tester, find.text('Data toko'));
+
+    expect(find.byType(TokoScreen), findsOneWidget);
+
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Nama toko'),
+      'Warung Barokah',
+    );
+    await tenang(tester);
+    await ketuk(tester, find.widgetWithText(FilledButton, 'Simpan'));
+
+    expect(tokoContoh.nama, 'Warung Barokah');
+
+    await ketuk(tester, find.text('Struk & printer'));
+    expect(find.byType(PratinjauStruk), findsOneWidget);
+    expect(find.text('WARUNG BAROKAH'), findsOneWidget);
+  });
+
+  testWidgets('pratinjau struk ikut berubah sebelum disimpan', (tester) async {
+    ukuran(tester, 400, 900);
+    await masuk(tester);
+    await keTab(tester, 'Akun');
+    await ketuk(tester, find.text('Struk & printer'));
+
+    // Alamat tampil karena sakelarnya menyala.
+    expect(find.text(tokoContoh.alamat), findsOneWidget);
+
+    await ketuk(tester, find.byType(Switch).first);
+    // Belum disimpan, tapi pratinjaunya sudah ikut — itu gunanya pratinjau.
+    expect(find.text(tokoContoh.alamat), findsNothing);
+    expect(strukContoh.tampilkanAlamat, isTrue);
+
+    await ketuk(tester, find.widgetWithText(FilledButton, 'Simpan'));
+    expect(strukContoh.tampilkanAlamat, isFalse);
+  });
+
+  testWidgets('lebar kertas mengubah lebar pratinjau, bukan cuma labelnya', (
+    tester,
+  ) async {
+    ukuran(tester, 400, 900);
+    await masuk(tester);
+    await keTab(tester, 'Akun');
+    await ketuk(tester, find.text('Struk & printer'));
+
+    double lebarPratinjau() =>
+        tester.getSize(find.byType(PratinjauStruk)).width;
+
+    final sempit = lebarPratinjau();
+    await ketuk(tester, find.text('80 mm'));
+    expect(lebarPratinjau(), greaterThan(sempit));
   });
 }
