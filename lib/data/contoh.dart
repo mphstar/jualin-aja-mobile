@@ -62,6 +62,19 @@ Toko _tokoAwal() => const Toko(
   telepon: '0812-3456-7890',
 );
 
+/// Profil pemilik yang bisa disunting dari Akun · Ubah profil.
+///
+/// Sama seperti [tokoContoh], konstanta di atas tetap jadi nilai awal — bukan
+/// sumber yang dibaca layar. `emailPemilik` khususnya tidak boleh ikut berubah:
+/// ia dipakai sebagai kredensial demo di layar masuk.
+Profil profilContoh = _profilAwal();
+
+Profil _profilAwal() => const Profil(
+  nama: namaPemilik,
+  email: emailPemilik,
+  telepon: '0812-3456-7890',
+);
+
 /// Pengaturan struk. Nilai awalnya sengaja sudah terisi wajar — struk yang
 /// keluar dari kotak tanpa disetel apa pun harus tetap layak diberikan ke
 /// pembeli.

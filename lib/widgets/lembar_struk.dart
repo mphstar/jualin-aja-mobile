@@ -1,12 +1,20 @@
 import 'package:flutter/material.dart';
 
 import '../data/model.dart';
+import '../screens/sunting_pesanan_screen.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../util/format.dart';
 import 'kartu.dart';
 import 'lembar_pelunasan.dart';
 import 'lencana.dart';
+
+/// Apa yang diminta pengguna dari lembar struk.
+///
+/// Dikembalikan lewat `pop`, bukan dikerjakan di dalam lembarnya: kedua aksi
+/// membuka permukaan baru, dan permukaan yang tumbuh di atas lembar bawah
+/// menyisakan tepi lembar pertama yang mengambang dan tidak bisa disentuh.
+enum _AksiStruk { bayar, ubah }
 
 /// Detail satu struk sebagai lembar bawah.
 ///
@@ -19,36 +27,50 @@ class LembarStruk extends StatelessWidget {
 
   final Transaksi transaksi;
 
-  /// Buka lembarnya, lalu — kalau pengguna menekan "Terima pembayaran" —
-  /// lanjutkan ke lembar pelunasan.
+  /// Buka lembarnya, lalu lanjutkan ke permukaan yang diminta: lembar
+  /// pelunasan, atau layar ubah pesanan.
   ///
-  /// Kedua lembar sengaja tidak ditumpuk: lembar bawah di atas lembar bawah
-  /// menyisakan tepi lembar pertama yang mengambang dan tidak bisa disentuh.
-  /// Yang pertama ditutup dulu, yang kedua menggantikannya.
+  /// Lembarnya ditutup lebih dulu, tidak ditumpuk.
   static Future<void> tampilkan(
     BuildContext context,
     Transaksi transaksi,
   ) async {
-    final mintaBayar = await showModalBottomSheet<bool>(
+    final aksi = await showModalBottomSheet<_AksiStruk>(
       context: context,
       showDragHandle: true,
       builder: (_) => LembarStruk(transaksi: transaksi),
     );
-    if (mintaBayar != true || !context.mounted) return;
+    if (aksi == null || !context.mounted) return;
 
-    final lunas = await tampilkanLembarPelunasan(context, transaksi);
-    if (!lunas || !context.mounted) return;
+    switch (aksi) {
+      case _AksiStruk.ubah:
+        final tersimpan = await SuntingPesananScreen.tampilkan(
+          context,
+          transaksi,
+        );
+        if (!tersimpan || !context.mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text('Pesanan ${transaksi.nomorStruk} diperbarui'),
+            ),
+          );
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            'Piutang ${transaksi.pelanggan ?? transaksi.nomorStruk} lunas · '
-            '${rupiah(transaksi.total)}',
-          ),
-        ),
-      );
+      case _AksiStruk.bayar:
+        final lunas = await tampilkanLembarPelunasan(context, transaksi);
+        if (!lunas || !context.mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                'Piutang ${transaksi.pelanggan ?? transaksi.nomorStruk} lunas · '
+                '${rupiah(transaksi.total)}',
+              ),
+            ),
+          );
+    }
   }
 
   @override
@@ -137,13 +159,33 @@ class LembarStruk extends StatelessWidget {
               ),
             ],
             const SizedBox(height: Jarak.sm),
-            if (transaksi.piutang)
+            if (transaksi.piutang) ...[
               FilledButton.icon(
-                onPressed: () => Navigator.of(context).pop(true),
+                onPressed: () => Navigator.of(context).pop(_AksiStruk.bayar),
                 icon: const Icon(Icons.payments_outlined, size: 18),
                 label: const Text('Terima pembayaran'),
-              )
-            else
+              ),
+              const SizedBox(height: Jarak.xs2),
+              // Hanya muncul selama utangnya belum lunas. Struk yang sudah
+              // dibayar tidak boleh berubah isinya: uangnya sudah diterima,
+              // angkanya sudah masuk laporan, dan kertasnya sudah di tangan
+              // pembeli.
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).pop(_AksiStruk.ubah),
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                label: const Text('Ubah pesanan'),
+              ),
+              const SizedBox(height: Jarak.xs2),
+              Text(
+                'Selama belum dilunasi, barangnya masih bisa ditambah, '
+                'dikurangi, atau dihapus — stok ikut menyesuaikan.',
+                textAlign: TextAlign.center,
+                style: context.teks.bodySmall?.copyWith(
+                  color: context.warna.onSurfaceVariant,
+                  height: 1.4,
+                ),
+              ),
+            ] else
               OutlinedButton.icon(
                 onPressed: () {
                   final pesan = ScaffoldMessenger.of(context);

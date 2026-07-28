@@ -158,7 +158,7 @@ class _Sapaan extends StatelessWidget {
           ),
           alignment: Alignment.center,
           child: Text(
-            inisial(namaPemilik),
+            inisial(profilContoh.nama),
             style: context.teks.titleSmall?.copyWith(
               color: context.warna.onSurfaceVariant,
             ),
@@ -177,7 +177,7 @@ class _Sapaan extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               Text(
-                namaToko,
+                tokoContoh.nama,
                 style: context.teks.titleMedium,
                 overflow: TextOverflow.ellipsis,
               ),

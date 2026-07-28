@@ -7,6 +7,7 @@ import '../theme/tokens.dart';
 import '../util/format.dart';
 import '../widgets/kartu.dart';
 import '../widgets/tombol_pil.dart';
+import 'kategori_screen.dart' show suntingKategori;
 
 /// Formulir tambah / ubah produk.
 ///
@@ -32,6 +33,14 @@ class _FormProdukScreenState extends State<FormProdukScreen> {
   late final TextEditingController _satuan;
   late final TextEditingController _stok;
 
+  /// Salinan lokal, bukan `widget.kategori` langsung.
+  ///
+  /// Kategori bisa ditambah dari layar ini juga, dan daftar yang dititipkan
+  /// pemanggil tidak akan tahu soal itu. Menyimpan salinannya membuat kategori
+  /// yang baru dibuat langsung muncul sebagai chip — tanpa menutup formulir dan
+  /// kehilangan nama serta harga yang sudah terlanjur diketik.
+  late List<Kategori> _kategori;
+
   late String _kategoriId;
   late bool _lacakStok;
   bool _menyimpan = false;
@@ -47,8 +56,32 @@ class _FormProdukScreenState extends State<FormProdukScreen> {
     _harga = TextEditingController(text: p == null ? '' : angka(p.hargaJual));
     _satuan = TextEditingController(text: p?.satuan ?? 'pcs');
     _stok = TextEditingController(text: p == null ? '' : angka(p.stok));
-    _kategoriId = p?.kategoriId ?? widget.kategori.first.id;
+    _kategori = List.of(widget.kategori);
+    _kategoriId = p?.kategoriId ?? _kategori.first.id;
     _lacakStok = p?.lacakStok ?? false;
+  }
+
+  /// Buka lembar kategori baru, lalu langsung pilih yang tersimpan.
+  ///
+  /// Membuat kategori tanpa langsung memilihnya adalah tiga ketukan yang
+  /// terlihat seperti tidak terjadi apa-apa: chipnya bertambah, tapi yang
+  /// tercentang masih yang lama.
+  Future<void> _tambahKategori() async {
+    final baru = await suntingKategori(context, kategori: null);
+    if (baru == null || !mounted) return;
+
+    setState(() {
+      // Bisa saja id-nya sudah ada kalau lembarnya dipakai untuk menyunting;
+      // di sini ia selalu baru, tapi penggantinya tetap ditangani supaya
+      // daftarnya tidak pernah berisi dua kategori berid sama.
+      final i = _kategori.indexWhere((k) => k.id == baru.id);
+      if (i >= 0) {
+        _kategori[i] = baru;
+      } else {
+        _kategori.add(baru);
+      }
+      _kategoriId = baru.id;
+    });
   }
 
   @override
@@ -162,7 +195,7 @@ class _FormProdukScreenState extends State<FormProdukScreen> {
                           spacing: Jarak.xs2,
                           runSpacing: Jarak.xs2,
                           children: [
-                            for (final k in widget.kategori)
+                            for (final k in _kategori)
                               ChoiceChip(
                                 label: Text(k.nama),
                                 avatar: Icon(k.ikon, size: 18),
@@ -170,6 +203,15 @@ class _FormProdukScreenState extends State<FormProdukScreen> {
                                 onSelected: (_) =>
                                     setState(() => _kategoriId = k.id),
                               ),
+                            // Berdiri di ujung barisan chip, bukan di menu lain.
+                            // Kebutuhan "kategorinya belum ada" muncul persis
+                            // saat mata sedang menyapu daftar ini dan tidak
+                            // menemukan yang dicari.
+                            ActionChip(
+                              avatar: const Icon(Icons.add, size: 18),
+                              label: const Text('Kategori baru'),
+                              onPressed: _menyimpan ? null : _tambahKategori,
+                            ),
                           ],
                         ),
 

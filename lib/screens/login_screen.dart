@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/contoh.dart';
+import '../data/repositori.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../widgets/ilustrasi.dart';
@@ -49,21 +50,19 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_kunciForm.currentState!.validate()) return;
 
     setState(() => _memproses = true);
-    // Jeda buatan supaya keadaan "memproses" benar-benar teruji sekarang,
-    // bukan baru ketahuan saat backend disambung.
-    await Future<void>.delayed(const Duration(milliseconds: 600));
-    if (!mounted) return;
 
-    final cocok =
-        _email.text.trim() == kredensialDemo.email &&
-        _sandi.text == kredensialDemo.sandi;
-
-    if (cocok) {
+    try {
+      await Repositori.masuk(
+        email: _email.text.trim(),
+        kataSandi: _sandi.text,
+      );
+      if (!mounted) return;
       widget.onMasuk();
-    } else {
+    } on GagalMuat catch (e) {
+      if (!mounted) return;
       setState(() {
         _memproses = false;
-        _galat = 'Email atau kata sandi tidak cocok.';
+        _galat = e.pesan;
       });
     }
   }

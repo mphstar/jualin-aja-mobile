@@ -67,7 +67,7 @@ class _Kosong extends StatelessWidget {
             'Kategori memisahkan menu di kasir supaya tidak semua barang '
             'tampil sekaligus. Dua atau tiga sudah cukup untuk mulai.',
         labelAksi: 'Tambah kategori',
-        onAksi: () => _sunting(context, kategori: null),
+        onAksi: () => suntingKategori(context, kategori: null),
       ),
     );
   }
@@ -161,7 +161,7 @@ class _IsiState extends State<_Isi> {
           padding: const EdgeInsets.fromLTRB(Jarak.sm, 0, Jarak.sm, Jarak.sm),
           child: TombolPil(
             label: 'Tambah kategori',
-            onTekan: () => _sunting(context, kategori: null),
+            onTekan: () => suntingKategori(context, kategori: null),
           ),
         ),
       ],
@@ -191,7 +191,7 @@ class _BarisKategori extends StatelessWidget {
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => _sunting(context, kategori: kategori),
+        onTap: () => suntingKategori(context, kategori: kategori),
         child: Padding(
           padding: const EdgeInsets.symmetric(
             horizontal: Jarak.xs,
@@ -307,8 +307,16 @@ class _Catatan extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 /// Lembar tambah-atau-ubah. `kategori` null berarti kategori baru.
-Future<void> _sunting(BuildContext context, {required Kategori? kategori}) {
-  return showModalBottomSheet<void>(
+///
+/// Mengembalikan kategori yang tersimpan, atau null kalau lembarnya ditutup
+/// tanpa menyimpan. Nilai baliknya dipakai formulir produk: kategori yang baru
+/// dibuat dari sana harus langsung terpilih, bukan menyisakan pekerjaan
+/// "sekarang cari lagi yang tadi kamu buat".
+Future<Kategori?> suntingKategori(
+  BuildContext context, {
+  required Kategori? kategori,
+}) {
+  return showModalBottomSheet<Kategori>(
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
@@ -354,7 +362,7 @@ class _LembarKategoriState extends State<_LembarKategori> {
     });
 
     try {
-      await Repositori.simpanKategori(
+      final tersimpan = await Repositori.simpanKategori(
         widget.awal?.salin(nama: _nama.text.trim(), ikon: _ikon) ??
             Kategori(
               id: Repositori.idKategoriBerikutnya(),
@@ -364,7 +372,7 @@ class _LembarKategoriState extends State<_LembarKategori> {
       );
       if (!mounted) return;
       final pesan = ScaffoldMessenger.of(context);
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(tersimpan);
       pesan
         ..hideCurrentSnackBar()
         ..showSnackBar(

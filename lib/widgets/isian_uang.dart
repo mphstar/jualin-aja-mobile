@@ -195,14 +195,61 @@ class BarisKembalian extends StatelessWidget {
   }
 }
 
+/// Kembalian setelah transaksi tersimpan — BESAR dan sendirian.
+///
+/// Bedanya dengan [BarisKembalian] bukan sekadar ukuran. Yang itu angka yang
+/// sedang dihitung sambil uangnya diketik; yang ini angka yang sudah final dan
+/// harus dibaca sekali lihat sambil tangan memegang uang pembeli. Menaruhnya
+/// sejajar dengan angka lain berarti memaksa orang mencarinya.
+class PanelKembalian extends StatelessWidget {
+  const PanelKembalian({super.key, required this.nilai});
+
+  final int nilai;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = context.aksen;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: Jarak.sm,
+        vertical: Jarak.md,
+      ),
+      decoration: BoxDecoration(
+        color: nilai > 0 ? a.suksesLembut : a.isian,
+        borderRadius: BorderRadius.circular(Lengkung.panel),
+      ),
+      child: Column(
+        children: [
+          Text(
+            nilai > 0 ? 'KEMBALIAN' : 'UANG PAS',
+            style: context.teks.labelSmall?.copyWith(
+              color: nilai > 0 ? a.sukses : context.warna.onSurfaceVariant,
+              letterSpacing: 1,
+            ),
+          ),
+          if (nilai > 0) ...[
+            const SizedBox(height: Jarak.xs3),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                rupiah(nilai),
+                style: context.teks.displaySmall?.copyWith(
+                  color: a.sukses,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 /// Catatan untuk metode non-tunai — tidak ada kembalian yang perlu dihitung,
 /// yang perlu dipastikan justru dananya sudah benar-benar masuk.
 class CatatanNonTunai extends StatelessWidget {
-  const CatatanNonTunai({
-    super.key,
-    required this.metode,
-    required this.total,
-  });
+  const CatatanNonTunai({super.key, required this.metode, required this.total});
 
   final MetodeBayar metode;
   final int total;

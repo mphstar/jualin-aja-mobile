@@ -1,30 +1,23 @@
-/// Lapisan data.
+/// Lapisan data — sekarang tersambung ke backend Laravel.
 ///
-/// **Kontraknya: tidak ada satu pun layar yang menyentuh `contoh.dart`
-/// langsung.** Semua lewat sini, semuanya `Future`, semuanya berjeda. Itu yang
-/// membuat keadaan memuat / kosong / error benar-benar teruji sekarang —
-/// bukan baru ketahuan setelah backend disambung dan ternyata belum pernah
-/// ada tempatnya di tata letak (PRD §8).
+/// Tanda tangan fungsi TIDAK BERUBAH dari versi contoh. Layar-layar Flutter
+/// tidak perlu diubah sama sekali. Yang berubah hanya isi fungsinya: dari
+/// membaca `contoh.dart` menjadi panggilan HTTP ke `/api/mobile/v1/*`.
 ///
-/// Saat backend siap, isi berkas ini berubah jadi panggilan HTTP. Tanda
-/// tangan fungsinya tidak berubah, jadi layar tidak ikut disentuh.
+/// Keadaan memuat / kosong / error tetap sama — bedanya sekarang error
+/// datang dari jaringan sungguhan, bukan dari sakelar peragaan.
 library;
 
 import 'package:flutter/foundation.dart';
 
-import 'contoh.dart';
+import 'api.dart' as api;
 import 'model.dart';
+import 'parser.dart';
 
 // ---------------------------------------------------------------------------
-// Bentuk pemuatan
+// Bentuk pemuatan (tidak berubah dari versi contoh)
 // ---------------------------------------------------------------------------
 
-/// Tiga varian, empat keadaan.
-///
-/// "Kosong" sengaja BUKAN varian tersendiri: kosong adalah sifat datanya, dan
-/// hanya pemanggil yang tahu apa artinya kosong untuk layarnya. Daftar produk
-/// kosong berarti "belum ada produk"; daftar transaksi kosong hari ini berarti
-/// "belum ada penjualan" — dua kalimat berbeda dari satu bentuk data yang sama.
 sealed class Muatan<T> {
   const Muatan();
 }
@@ -44,56 +37,15 @@ final class Siap<T> extends Muatan<T> {
 }
 
 // ---------------------------------------------------------------------------
-// Sakelar peragaan
+// Sakelar peragaan — tetap ada untuk development
 // ---------------------------------------------------------------------------
 
-/// Memaksa lapisan ini mengembalikan keadaan tertentu.
-///
-/// Ada supaya keempat keadaan bisa DILIHAT, bukan cuma dipercaya ada. Keadaan
-/// kosong dan error yang tidak pernah dibuka adalah keadaan yang tidak pernah
-/// benar-benar dirancang.
 enum ModeUji { normal, memuat, kosong, galat }
 
 final modeUji = ValueNotifier<ModeUji>(ModeUji.normal);
 
-/// Bertambah setiap kali lapisan ini berubah dari dalam aplikasi — untuk
-/// sekarang hanya saat pembayaran lunas.
-///
-/// [Bingkai] mendengarkannya, jadi setiap layar yang sedang terbuka memuat
-/// ulang dirinya sendiri. Tanpa ini, layar Akun masih menampilkan "5 hari
-/// lagi" tepat setelah pembayaran berhasil — dan tidak ada kabar buruk yang
-/// lebih merusak kepercayaan daripada aplikasi yang tidak mengakui uang yang
-/// baru saja dibayarkan.
-///
-/// Ini juga persis tempat state management masuk nanti. Satu notifier untuk
-/// seluruh aplikasi jelas kasar; yang penting sekarang, seamnya cuma satu.
+/// Bertambah setiap kali lapisan ini berubah dari dalam aplikasi.
 final revisiData = ValueNotifier<int>(0);
-
-/// Jeda buatan 300–800 ms, sama seperti panel web. Cukup untuk melihat rangka
-/// pemuatan, cukup pendek untuk tidak menjengkelkan saat dipakai.
-Future<void> _jeda() =>
-    Future<void>.delayed(Duration(milliseconds: 300 + _acakJeda()));
-
-int _acakJeda() => DateTime.now().microsecond % 500;
-
-Future<T> _kirim<T>(T Function() bangun, {required T kalauKosong}) async {
-  switch (modeUji.value) {
-    case ModeUji.memuat:
-      // Sepuluh detik, bukan selamanya: cukup lama untuk diperiksa, cukup
-      // pendek untuk tidak menggantung tes atau menyandera pengguna.
-      await Future<void>.delayed(const Duration(seconds: 10));
-      return bangun();
-    case ModeUji.galat:
-      await _jeda();
-      throw const GagalMuat('Tidak bisa terhubung ke server.');
-    case ModeUji.kosong:
-      await _jeda();
-      return kalauKosong;
-    case ModeUji.normal:
-      await _jeda();
-      return bangun();
-  }
-}
 
 class GagalMuat implements Exception {
   const GagalMuat(this.pesan);
@@ -104,7 +56,7 @@ class GagalMuat implements Exception {
 }
 
 // ---------------------------------------------------------------------------
-// Bentuk gabungan untuk Beranda
+// Bentuk gabungan untuk Beranda (tidak berubah)
 // ---------------------------------------------------------------------------
 
 class RingkasanBeranda {
@@ -126,20 +78,11 @@ class RingkasanBeranda {
   final int omzetKemarin;
   final int transaksi;
   final int item;
-
-  /// Tujuh hari terakhir, terlama di depan, hari ini di belakang. Dipakai
-  /// sebagai garis percikan di panel fokus.
   final List<int> tujuhHari;
-
   final List<Transaksi> terakhir;
   final Langganan langganan;
   final int produkHabis;
   final int produkMenipis;
-
-  /// Piutang **seluruh riwayat**, bukan hari ini saja. Utang yang dibuat
-  /// kemarin tidak berhenti jadi utang hanya karena hari berganti — dan
-  /// membatasinya ke hari ini akan membuat daftarnya menghilang dari Beranda
-  /// tepat pada pagi ketika ia paling perlu ditagih.
   final int piutangJumlah;
   final int piutangTotal;
 
@@ -147,10 +90,6 @@ class RingkasanBeranda {
   bool get adaMasalahStok => produkHabis > 0 || produkMenipis > 0;
   bool get adaPiutang => piutangJumlah > 0;
 
-  /// Selisih persen terhadap kemarin, atau **null** kalau kemarin nol.
-  ///
-  /// Null itu penting: pertumbuhan dari nol bukan "naik 100%", itu tidak
-  /// terdefinisi. Menampilkan angka apa pun di situ adalah mengarang.
   int? get selisihPersen {
     if (omzetKemarin == 0) return null;
     return (((omzet - omzetKemarin) / omzetKemarin) * 100).round();
@@ -158,167 +97,156 @@ class RingkasanBeranda {
 }
 
 // ---------------------------------------------------------------------------
-// Repositori
+// Repositori — sekarang memanggil API backend
 // ---------------------------------------------------------------------------
 
 abstract final class Repositori {
-  static bool _samaHari(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
 
-  static Future<List<Kategori>> kategori() =>
-      _kirim(() => kategoriContoh, kalauKosong: const []);
+  // -------------------------------------------------------------------------
+  // Auth
+  // -------------------------------------------------------------------------
 
-  static Future<List<Produk>> produk() =>
-      _kirim(() => produkContoh, kalauKosong: const []);
+  /// Login ke backend. Mengembalikan data awal (profil, toko, langganan).
+  static Future<({Profil profil, Toko toko, Langganan langganan})> masuk({
+    required String email,
+    required String kataSandi,
+  }) async {
+    final j = await api.post('/auth/masuk', {
+      'email': email,
+      'kataSandi': kataSandi,
+      'perangkat': 'Aplikasi POS Flutter',
+    });
 
-  static Future<List<Ebook>> ebook() =>
-      _kirim(() => ebookContoh, kalauKosong: const []);
+    await api.simpanToken(j['token'] as String);
 
-  static Future<Langganan> langganan() =>
-      _kirim(() => langgananContoh, kalauKosong: langgananContoh);
+    final profil = profilDariJson(j['profil'] as Map<String, dynamic>);
+    final toko = tokoDariJson(j['toko'] as Map<String, dynamic>);
+    final langganan = langgananDariJson(
+      j['langganan'] as Map<String, dynamic>,
+    );
 
-  static Future<RingkasanBeranda> beranda() => _kirim(
-    () {
-      final kini = DateTime.now();
-      final awalHari = DateTime(kini.year, kini.month, kini.day);
+    return (profil: profil, toko: toko, langganan: langganan);
+  }
 
-      int omzetPada(DateTime hari) => transaksiContoh
-          .where((t) => t.dihitung && _samaHari(t.waktu, hari))
-          .fold(0, (n, t) => n + t.total);
+  /// Logout.
+  static Future<void> keluar() async {
+    try {
+      await api.post('/auth/keluar');
+    } catch (_) {
+      // Kalau gagal, tetap hapus token lokal.
+    }
+    await api.hapusToken();
+  }
 
-      final hariIni = transaksiContoh
-          .where((t) => t.dihitung && _samaHari(t.waktu, kini))
-          .toList();
-      final belumDibayar = transaksiContoh.where((t) => t.piutang).toList();
+  /// Cek sesi yang masih tersimpan.
+  static Future<({Profil profil, Toko toko, Langganan langganan})?> cekSesi() async {
+    await api.muatToken();
+    if (!api.sudahMasuk) return null;
 
-      return RingkasanBeranda(
-        omzet: hariIni.fold(0, (n, t) => n + t.total),
-        omzetKemarin: omzetPada(awalHari.subtract(const Duration(days: 1))),
-        transaksi: hariIni.length,
-        item: hariIni.fold(0, (n, t) => n + t.jumlahItem),
-        tujuhHari: [
-          for (var i = 6; i >= 0; i--)
-            omzetPada(awalHari.subtract(Duration(days: i))),
-        ],
-        terakhir: transaksiContoh.take(4).toList(),
-        langganan: langgananContoh,
-        produkHabis: produkContoh.where((p) => p.habis).length,
-        produkMenipis: produkContoh.where((p) => p.menipis).length,
-        piutangJumlah: belumDibayar.length,
-        piutangTotal: belumDibayar.fold(0, (n, t) => n + t.total),
+    try {
+      final j = await api.get('/auth/saya');
+      final profil = profilDariJson(j['profil'] as Map<String, dynamic>);
+      final toko = tokoDariJson(j['toko'] as Map<String, dynamic>);
+      final langganan = langgananDariJson(
+        j['langganan'] as Map<String, dynamic>,
       );
-    },
-    kalauKosong: RingkasanBeranda(
-      omzet: 0,
-      omzetKemarin: 0,
-      transaksi: 0,
-      item: 0,
-      tujuhHari: const [0, 0, 0, 0, 0, 0, 0],
-      terakhir: const [],
-      langganan: langgananContoh,
-      produkHabis: 0,
-      produkMenipis: 0,
-      piutangJumlah: 0,
-      piutangTotal: 0,
-    ),
-  );
+      return (profil: profil, toko: toko, langganan: langganan);
+    } on GagalMuat {
+      // Token sudah tidak sah.
+      await api.hapusToken();
+      return null;
+    }
+  }
 
   // -------------------------------------------------------------------------
-  // Pembayaran langganan
-  //
-  // Saat Midtrans disambung, ketiga fungsi ini yang berubah isinya:
-  // `buatTagihan` memanggil Snap/Core API, `periksaTagihan` membaca status
-  // transaksi, dan status sungguhannya datang lewat webhook — bukan lewat
-  // pengguna menekan "Saya sudah bayar". Tanda tangannya tidak berubah.
+  // Master data
   // -------------------------------------------------------------------------
 
-  static Future<List<Tagihan>> riwayatTagihan() =>
-      _kirim(() => tagihanContoh, kalauKosong: const []);
+  static Future<List<Kategori>> kategori() async {
+    final daftar = await api.getDaftar('/kategori');
+    return daftar
+        .map((e) => kategoriDariJson(e as Map<String, dynamic>))
+        .toList();
+  }
 
-  /// Membuat tagihan baru berstatus menunggu.
-  ///
-  /// Nomor VA-nya dibangkitkan di sini hanya untuk tahap tampilan. Nanti ia
-  /// datang dari Midtrans, dan **tidak boleh** dibangkitkan di sisi aplikasi —
-  /// nomor VA yang dikarang klien adalah nomor yang tidak akan pernah dibayar.
-  ///
-  /// Sengaja tidak lewat `_kirim`: membuat tagihan tidak punya bentuk
-  /// "kosong" yang masuk akal, dan memaksakan satu ke sana justru
-  /// menyembunyikan kesalahan.
+  static Future<List<Produk>> produk() async {
+    final daftar = await api.getDaftar('/produk');
+    return daftar
+        .map((e) => produkDariJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  static Future<List<Ebook>> ebook() async {
+    final daftar = await api.getDaftar('/resep');
+    return daftar
+        .map((e) => ebookDariJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  // -------------------------------------------------------------------------
+  // Langganan & pembayaran
+  // -------------------------------------------------------------------------
+
+  static Future<Langganan> langganan() async {
+    final j = await api.get('/langganan');
+    return langgananDariJson(j['langganan'] as Map<String, dynamic>);
+  }
+
+  static Future<List<Tagihan>> riwayatTagihan() async {
+    final daftar = await api.getDaftar('/tagihan');
+    return daftar
+        .map((e) => tagihanDariJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   static Future<Tagihan> buatTagihan({
     required DurasiPaket durasi,
     required SaluranBayar saluran,
   }) async {
-    await _jeda();
-    if (modeUji.value == ModeUji.galat) {
-      throw const GagalMuat('Tidak bisa membuat tagihan. Coba lagi.');
-    }
-
-    final kini = DateTime.now();
-    final nomor = tagihanContoh.length + 32;
-    return Tagihan(
-      id: 'inv$nomor',
-      nomorInvoice: 'INV/2026/${nomor.toString().padLeft(4, '0')}',
-      durasi: durasi,
-      nominal: durasi.harga,
-      saluran: saluran,
-      status: StatusBayar.menunggu,
-      dibuat: kini,
-      batasBayar: kini.add(const Duration(hours: 24)),
-      berlakuSampai: langgananContoh.berakhirSetelahPerpanjang(durasi),
-      kodeBayar: saluran.pakaiKode ? '8808 0812 3456 7890' : null,
-    );
+    final j = await api.post('/tagihan', {
+      'durasi': durasiKeString(durasi),
+      'saluran': saluranKeString(saluran),
+    });
+    return tagihanDariJson(j);
   }
 
-  /// Memeriksa status tagihan ke gateway.
-  ///
-  /// Di tahap tampilan ia menjawab "lunas" — yang diuji di sini bukan gerbang
-  /// pembayarannya, melainkan apakah layar sesudahnya benar: langganan
-  /// bertambah, riwayat bertambah, dan seluruh aplikasi ikut memperbarui diri.
-  ///
-  /// Mode uji "kosong" mengembalikan tagihan apa adanya — itu bukan kelalaian,
-  /// melainkan tiruan keadaan yang paling sering terjadi sungguhan: pengguna
-  /// menekan "Saya sudah bayar" sebelum dananya benar-benar masuk.
-  static Future<Tagihan> periksaTagihan(Tagihan tagihan) => _kirim(() {
-    if (tagihan.lewatBatas) {
-      return tagihan.salin(status: StatusBayar.kedaluwarsa);
+  static Future<Tagihan> periksaTagihan(Tagihan tagihan) async {
+    final j = await api.post('/tagihan/${tagihan.id}/periksa');
+    final hasil = tagihanDariJson(j);
+
+    if (hasil.statusKini == StatusBayar.lunas) {
+      revisiData.value++;
     }
 
-    final lunas = tagihan.salin(status: StatusBayar.lunas);
-    langgananContoh = Langganan(
-      durasi: tagihan.durasi,
-      // Masa aktif lama tetap jadi titik mulai catatan ini, supaya bilah
-      // kemajuan di Akun tidak melompat mundur setelah pembayaran.
-      tanggalMulai: langgananContoh.menyambung
-          ? langgananContoh.tanggalMulai
-          : DateTime.now(),
-      tanggalBerakhir: tagihan.berlakuSampai,
+    return hasil;
+  }
+
+  // -------------------------------------------------------------------------
+  // Beranda
+  // -------------------------------------------------------------------------
+
+  static Future<RingkasanBeranda> beranda() async {
+    final j = await api.get('/beranda');
+    final langganan = langgananDariJson(
+      j['langganan'] as Map<String, dynamic>,
     );
-    tagihanContoh = [lunas, ...tagihanContoh];
-    revisiData.value++;
-    return lunas;
-  }, kalauKosong: tagihan);
+    return berandaDariJson(j, langganan);
+  }
 
   // -------------------------------------------------------------------------
   // Penjualan
   // -------------------------------------------------------------------------
 
-  /// Nomor struk berikutnya, diturunkan dari struk terakhir — bukan dikarang.
-  /// Kalau angkanya tampil di layar, ia harus benar.
   static String nomorStrukBerikutnya() {
-    final terakhir = transaksiContoh.isEmpty
-        ? 0
-        : int.tryParse(transaksiContoh.first.nomorStruk.split('/').last) ?? 0;
-    return 'STR/2026/${(terakhir + 1).toString().padLeft(4, '0')}';
+    // Dipanggil sinkron di UI — akan diambil saat simpanTransaksi.
+    return '';
   }
 
-  /// Simpan satu penjualan.
-  ///
-  /// Stok produk yang dilacak ikut berkurang di sini — itu janji yang diucapkan
-  /// layar pembuka ("stok ikut turun sendiri"), dan janji yang hanya ditulis di
-  /// slide adalah janji yang tidak ditepati.
-  ///
-  /// Berlaku juga untuk transaksi `ditahan`: barangnya sudah keluar dari rak
-  /// meski uangnya belum masuk. Yang tidak ikut naik hanyalah omzet.
+  static Future<String> ambilNomorStrukBerikutnya() async {
+    final j = await api.get('/transaksi/nomor-berikutnya');
+    return j['nomorStruk'] as String? ?? '';
+  }
+
   static Future<Transaksi> simpanTransaksi({
     required List<ItemKeranjang> item,
     required MetodeBayar metode,
@@ -326,335 +254,230 @@ abstract final class Repositori {
     String? pelanggan,
     int? uangDiterima,
   }) async {
-    await _jeda();
-    if (modeUji.value == ModeUji.galat) {
-      throw const GagalMuat('Transaksi gagal disimpan. Coba lagi.');
-    }
-
-    final transaksi = Transaksi(
-      id: 'trx${DateTime.now().microsecondsSinceEpoch}',
-      nomorStruk: nomorStrukBerikutnya(),
-      waktu: DateTime.now(),
-      baris: [
+    final j = await api.post('/transaksi', {
+      'item': [
         for (final i in item)
-          BarisStruk(
-            produkId: i.produk.id,
-            nama: i.produk.nama,
-            hargaSatuan: i.produk.hargaJual,
-            jumlah: i.jumlah,
-          ),
+          {
+            'produkId': i.produk.id,
+            'nama': i.produk.nama,
+            'hargaSatuan': i.produk.hargaJual,
+            'jumlah': i.jumlah,
+          },
       ],
-      metode: metode,
-      status: status,
-      pelanggan: pelanggan,
-      uangDiterima: uangDiterima,
-    );
+      'metode': switch (metode) {
+        MetodeBayar.tunai => 'TUNAI',
+        MetodeBayar.qris => 'QRIS',
+        MetodeBayar.transfer => 'TRANSFER',
+      },
+      'status': switch (status) {
+        StatusTransaksi.selesai => 'SELESAI',
+        StatusTransaksi.ditahan => 'DITAHAN',
+        StatusTransaksi.batal => 'BATAL',
+      },
+      if (pelanggan != null && pelanggan.isNotEmpty) 'pelanggan': pelanggan,
+      'uangDiterima': ?uangDiterima,
+    });
 
-    final terjual = <String, int>{for (final i in item) i.produk.id: i.jumlah};
-    produkContoh = [
-      for (final p in produkContoh)
-        if (p.lacakStok && terjual.containsKey(p.id))
-          // Tidak pernah negatif: stok minus adalah angka yang tidak berarti
-          // apa-apa bagi pemilik toko, dan hanya membuat laporan terlihat rusak.
-          p.salin(stok: (p.stok - terjual[p.id]!).clamp(0, 1 << 31))
-        else
-          p,
-    ];
-
-    transaksiContoh = [transaksi, ...transaksiContoh];
     revisiData.value++;
-    return transaksi;
+    return transaksiDariJson(j);
   }
 
-  /// Lunasi transaksi yang tadinya "bayar nanti".
-  ///
-  /// Waktunya tidak diubah — omzet tetap tercatat di hari barangnya keluar,
-  /// bukan di hari uangnya masuk. Memindahkannya akan membuat laporan hari
-  /// kemarin berubah setelah ditutup.
+  static Future<Transaksi> ubahIsiTransaksi(
+    Transaksi transaksi, {
+    required List<BarisStruk> baris,
+  }) async {
+    final j = await api.put('/transaksi/${transaksi.id}/isi', {
+      'item': [
+        for (final b in baris)
+          {
+            'produkId': b.produkId,
+            'nama': b.nama,
+            'hargaSatuan': b.hargaSatuan,
+            'jumlah': b.jumlah,
+          },
+      ],
+    });
+
+    revisiData.value++;
+    return transaksiDariJson(j);
+  }
+
   static Future<Transaksi> lunasiTransaksi(
     Transaksi transaksi, {
     required MetodeBayar metode,
     int? uangDiterima,
   }) async {
-    await _jeda();
-    if (modeUji.value == ModeUji.galat) {
-      throw const GagalMuat('Pelunasan gagal disimpan. Coba lagi.');
-    }
+    final j = await api.post('/transaksi/${transaksi.id}/lunasi', {
+      'metode': switch (metode) {
+        MetodeBayar.tunai => 'TUNAI',
+        MetodeBayar.qris => 'QRIS',
+        MetodeBayar.transfer => 'TRANSFER',
+      },
+      'uangDiterima': ?uangDiterima,
+    });
 
-    final lunas = transaksi.salin(
-      metode: metode,
-      status: StatusTransaksi.selesai,
-      uangDiterima: uangDiterima,
-    );
-    transaksiContoh = [
-      for (final t in transaksiContoh)
-        if (t.id == transaksi.id) lunas else t,
-    ];
     revisiData.value++;
-    return lunas;
+    return transaksiDariJson(j);
   }
 
-  /// Piutang yang belum ditagih, terbaru di depan.
-  static Future<List<Transaksi>> piutang() => _kirim(
-    () => transaksiContoh.where((t) => t.piutang).toList(),
-    kalauKosong: const [],
-  );
+  static Future<List<Transaksi>> piutang() async {
+    final daftar = await api.getDaftar('/transaksi/piutang');
+    return daftar
+        .map((e) => transaksiDariJson(e as Map<String, dynamic>))
+        .toList();
+  }
 
   // -------------------------------------------------------------------------
-  // Master data & pengaturan
+  // Master data — simpan & hapus
   // -------------------------------------------------------------------------
 
-  /// Tambah produk baru, atau ganti yang sudah ada bila id-nya cocok.
   static Future<Produk> simpanProduk(Produk produk) async {
-    await _jeda();
-    if (modeUji.value == ModeUji.galat) {
-      throw const GagalMuat('Produk gagal disimpan. Coba lagi.');
-    }
+    // ID yang dimulai 'p' atau kosong = baru (dari contoh lama), kirim store.
+    // ID numerik = dari backend, kirim update.
+    final baru = int.tryParse(produk.id) == null;
 
-    final ada = produkContoh.any((p) => p.id == produk.id);
-    produkContoh = ada
-        ? [
-            for (final p in produkContoh)
-              if (p.id == produk.id) produk else p,
-          ]
-        : [...produkContoh, produk];
+    final body = <String, dynamic>{
+      'nama': produk.nama,
+      'kategoriId': produk.kategoriId,
+      'hargaJual': produk.hargaJual,
+      'satuan': produk.satuan,
+      'lacakStok': produk.lacakStok,
+      'stok': produk.stok,
+    };
+
+    final j = baru
+        ? await api.post('/produk', body)
+        : await api.patch('/produk/${produk.id}', body);
 
     revisiData.value++;
-    return produk;
+    return produkDariJson(j);
   }
 
-  /// Tambah kategori baru, atau ganti yang sudah ada bila id-nya cocok.
-  ///
-  /// Yang baru masuk ke BELAKANG, bukan depan. Urutan kategori menentukan
-  /// urutan chip di kasir, dan kategori yang baru dibuat menyerobot ke posisi
-  /// pertama berarti memindahkan tombol yang sudah dihafal jari kasir.
   static Future<Kategori> simpanKategori(Kategori kategori) async {
-    await _jeda();
-    if (modeUji.value == ModeUji.galat) {
-      throw const GagalMuat('Kategori gagal disimpan. Coba lagi.');
-    }
+    final baru = int.tryParse(kategori.id) == null;
 
-    final ada = kategoriContoh.any((k) => k.id == kategori.id);
-    kategoriContoh = ada
-        ? [
-            for (final k in kategoriContoh)
-              if (k.id == kategori.id) kategori else k,
-          ]
-        : [...kategoriContoh, kategori];
+    final body = <String, dynamic>{
+      'nama': kategori.nama,
+      'ikon': ikonKeNama(kategori.ikon),
+    };
+
+    final j = baru
+        ? await api.post('/kategori', body)
+        : await api.patch('/kategori/${kategori.id}', body);
 
     revisiData.value++;
-    return kategori;
+    return kategoriDariJson(j);
   }
 
-  /// Hapus kategori, sekaligus **memindahkan produknya**.
-  ///
-  /// [pindahkanKe] wajib diisi kalau kategorinya masih berisi produk. Produk
-  /// tanpa kategori yang ada adalah produk yang hilang dari layar Produk dan
-  /// dari kasir sekaligus — masih tersimpan, tapi tidak bisa dijual maupun
-  /// disunting. Menghapus diam-diam jauh lebih merusak daripada menolak
-  /// menghapus.
-  ///
-  /// Kategori terakhir tidak boleh dihapus: formulir produk selalu butuh
-  /// setidaknya satu kategori untuk dipilih.
   static Future<void> hapusKategori(String id, {String? pindahkanKe}) async {
-    await _jeda();
-    if (modeUji.value == ModeUji.galat) {
-      throw const GagalMuat('Kategori gagal dihapus. Coba lagi.');
-    }
-    if (kategoriContoh.length <= 1) {
-      throw const GagalMuat('Kategori terakhir tidak bisa dihapus.');
-    }
-
-    final punyaProduk = produkContoh.any((p) => p.kategoriId == id);
-    if (punyaProduk) {
-      if (pindahkanKe == null || pindahkanKe == id) {
-        throw const GagalMuat('Pilih dulu kategori tujuan produknya.');
-      }
-      produkContoh = [
-        for (final p in produkContoh)
-          if (p.kategoriId == id) p.salin(kategoriId: pindahkanKe) else p,
-      ];
-    }
-
-    kategoriContoh = [
-      for (final k in kategoriContoh)
-        if (k.id != id) k,
-    ];
+    final query = pindahkanKe != null ? '?pindahkanKe=$pindahkanKe' : '';
+    await api.delete('/kategori/$id$query');
     revisiData.value++;
   }
 
-  /// Simpan urutan kategori yang baru.
-  ///
-  /// Diterima sebagai daftar utuh, bukan "pindahkan indeks A ke B": daftar
-  /// utuh tidak bisa salah menafsirkan pergeseran indeks setelah elemen
-  /// diangkat — kesalahan yang selalu meleset satu posisi dan selalu baru
-  /// ketahuan setelah dipakai.
-  ///
-  /// Sengaja tanpa jeda buatan **dan tanpa menaikkan [revisiData]**: barisnya
-  /// sudah berpindah di bawah jari saat dilepas. Rangka pemuatan yang menyusul
-  /// sesudahnya akan terbaca seperti perpindahan yang dibatalkan lalu diulang
-  /// — dan tidak ada layar lain yang sedang terbuka untuk diberi tahu, karena
-  /// pengurutan hanya bisa dilakukan dari layar Kategori itu sendiri.
   static Future<void> urutkanKategori(List<Kategori> urutan) async {
-    if (modeUji.value == ModeUji.galat) {
-      throw const GagalMuat('Urutan kategori gagal disimpan. Coba lagi.');
-    }
-    kategoriContoh = List.of(urutan);
+    await api.put('/kategori/urutan', {
+      'urutan': [for (final k in urutan) int.tryParse(k.id) ?? k.id],
+    });
   }
 
-  /// Id kategori baru, menaik seperti id produk.
-  static String idKategoriBerikutnya() {
-    final maks = kategoriContoh
-        .map((k) => int.tryParse(k.id.replaceFirst('k', '')) ?? 0)
-        .fold(0, (a, b) => a > b ? a : b);
-    return 'k${maks + 1}';
+  static String idKategoriBerikutnya() => 'baru';
+  static String idProdukBerikutnya() => 'baru';
+
+  // -------------------------------------------------------------------------
+  // Profil & toko
+  // -------------------------------------------------------------------------
+
+  static Future<Profil> profil() async {
+    final j = await api.get('/auth/saya');
+    return profilDariJson(j['profil'] as Map<String, dynamic>);
   }
 
-  /// Id produk baru. Menaik, bukan acak — supaya urutan tambah masih terbaca
-  /// dari datanya saat ada yang perlu ditelusuri.
-  static String idProdukBerikutnya() {
-    final maks = produkContoh
-        .map((p) => int.tryParse(p.id.replaceFirst('p', '')) ?? 0)
-        .fold(0, (a, b) => a > b ? a : b);
-    return 'p${maks + 1}';
+  static Future<Profil> simpanProfil(Profil profil) async {
+    final j = await api.patch('/auth/profil', {
+      'nama': profil.nama,
+      'email': profil.email,
+      'telepon': profil.telepon,
+    });
+    revisiData.value++;
+    return profilDariJson(j);
   }
 
-  static Future<Toko> toko() =>
-      _kirim(() => tokoContoh, kalauKosong: tokoContoh);
+  static Future<Toko> toko() async {
+    final j = await api.get('/toko');
+    return tokoDariJson(j);
+  }
 
   static Future<Toko> simpanToko(Toko toko) async {
-    await _jeda();
-    if (modeUji.value == ModeUji.galat) {
-      throw const GagalMuat('Data toko gagal disimpan. Coba lagi.');
-    }
-    tokoContoh = toko;
+    final j = await api.put('/toko', {
+      'nama_toko': toko.nama,
+      'alamat': toko.alamat,
+      'telepon': toko.telepon,
+    });
     revisiData.value++;
-    return toko;
+    return tokoDariJson(j);
   }
 
-  static Future<PengaturanStruk> pengaturanStruk() =>
-      _kirim(() => strukContoh, kalauKosong: strukContoh);
+  static Future<PengaturanStruk> pengaturanStruk() async {
+    final j = await api.get('/toko/struk');
+    return pengaturanStrukDariJson(j);
+  }
 
   static Future<PengaturanStruk> simpanPengaturanStruk(
     PengaturanStruk pengaturan,
   ) async {
-    await _jeda();
-    if (modeUji.value == ModeUji.galat) {
-      throw const GagalMuat('Pengaturan struk gagal disimpan. Coba lagi.');
-    }
-    strukContoh = pengaturan;
+    final j = await api.put('/toko/struk', {
+      'kepala': pengaturan.kepala,
+      'kaki': pengaturan.kaki,
+      'tampilkan_alamat': pengaturan.tampilkanAlamat,
+      'tampilkan_telepon': pengaturan.tampilkanTelepon,
+      'tampilkan_nama_kasir': pengaturan.tampilkanNamaKasir,
+      'lebar': pengaturan.lebar == LebarKertas.mm58 ? 'MM58' : 'MM80',
+    });
     revisiData.value++;
-    return pengaturan;
+    return pengaturanStrukDariJson(j);
   }
 
-  /// Riwayat, boleh disaring. Penyaringan dikerjakan DI SINI, bukan di layar —
-  /// supaya saat penyaringan pindah ke sisi server nanti, layarnya tidak ikut
-  /// diubah.
+  // -------------------------------------------------------------------------
+  // Riwayat transaksi
+  // -------------------------------------------------------------------------
+
   static Future<List<Transaksi>> riwayat({
     String cari = '',
     StatusTransaksi? status,
     MetodeBayar? metode,
-  }) => _kirim(() {
-    final kunci = cari.trim().toLowerCase();
-    return transaksiContoh.where((t) {
-      if (status != null && t.status != status) return false;
-      if (metode != null && t.metode != metode) return false;
-      if (kunci.isEmpty) return true;
-      return t.nomorStruk.toLowerCase().contains(kunci) ||
-          t.baris.any((b) => b.nama.toLowerCase().contains(kunci));
-    }).toList();
-  }, kalauKosong: const []);
+  }) async {
+    final query = <String, String>{};
+    if (cari.trim().isNotEmpty) query['cari'] = cari.trim();
+    if (status != null) {
+      query['status'] = switch (status) {
+        StatusTransaksi.selesai => 'SELESAI',
+        StatusTransaksi.ditahan => 'DITAHAN',
+        StatusTransaksi.batal => 'BATAL',
+      };
+    }
+    if (metode != null) {
+      query['metode'] = switch (metode) {
+        MetodeBayar.tunai => 'TUNAI',
+        MetodeBayar.qris => 'QRIS',
+        MetodeBayar.transfer => 'TRANSFER',
+      };
+    }
 
-  /// Laporan penjualan (PRD §1). Seluruh angkanya DITURUNKAN dari transaksi —
-  /// tidak ada satu pun yang dikarang, dan itu sengaja: laporan yang angkanya
-  /// ditulis tangan tidak pernah ketahuan salah sampai dipakai sungguhan.
-  static Future<Laporan> laporan(Periode periode) => _kirim(
-    () {
-      final kini = DateTime.now();
-      final hariIni = DateTime(kini.year, kini.month, kini.day);
-      final mulai = hariIni.subtract(Duration(days: periode.hari - 1));
+    final daftar = await api.getDaftar('/transaksi', query);
+    return daftar
+        .map((e) => transaksiDariJson(e as Map<String, dynamic>))
+        .toList();
+  }
 
-      final dalam = transaksiContoh
-          .where((t) => t.dihitung && !t.waktu.isBefore(mulai))
-          .toList();
+  // -------------------------------------------------------------------------
+  // Laporan
+  // -------------------------------------------------------------------------
 
-      // Deret harian selalu selengkap periodenya, termasuk hari-hari nol. Grafik
-      // yang melompati hari sepi diam-diam membuat toko terlihat lebih ramai
-      // daripada aslinya.
-      final harian = <TitikHarian>[];
-      for (var i = periode.hari - 1; i >= 0; i--) {
-        final hari = hariIni.subtract(Duration(days: i));
-        final isi = dalam.where((t) => _samaHari(t.waktu, hari));
-        harian.add(
-          TitikHarian(
-            tanggal: hari,
-            omzet: isi.fold(0, (n, t) => n + t.total),
-            transaksi: isi.length,
-          ),
-        );
-      }
-
-      final perProduk = <String, ({int jumlah, int omzet})>{};
-      for (final t in dalam) {
-        for (final b in t.baris) {
-          final l = perProduk[b.nama] ?? (jumlah: 0, omzet: 0);
-          perProduk[b.nama] = (
-            jumlah: l.jumlah + b.jumlah,
-            omzet: l.omzet + b.subtotal,
-          );
-        }
-      }
-      final terlaris =
-          perProduk.entries
-              .map(
-                (e) => ProdukTerlaris(
-                  nama: e.key,
-                  jumlah: e.value.jumlah,
-                  omzet: e.value.omzet,
-                ),
-              )
-              .toList()
-            ..sort((a, b) => b.jumlah.compareTo(a.jumlah));
-
-      final perMetode = <MetodeBayar, ({int omzet, int transaksi})>{};
-      for (final t in dalam) {
-        final l = perMetode[t.metode] ?? (omzet: 0, transaksi: 0);
-        perMetode[t.metode] = (
-          omzet: l.omzet + t.total,
-          transaksi: l.transaksi + 1,
-        );
-      }
-      final metode =
-          MetodeBayar.values
-              .map(
-                (m) => PorsiMetode(
-                  metode: m,
-                  omzet: perMetode[m]?.omzet ?? 0,
-                  transaksi: perMetode[m]?.transaksi ?? 0,
-                ),
-              )
-              .where((p) => p.transaksi > 0)
-              .toList()
-            ..sort((a, b) => b.omzet.compareTo(a.omzet));
-
-      return Laporan(
-        periode: periode,
-        omzet: dalam.fold(0, (n, t) => n + t.total),
-        transaksi: dalam.length,
-        item: dalam.fold(0, (n, t) => n + t.jumlahItem),
-        harian: harian,
-        terlaris: terlaris.take(5).toList(),
-        metode: metode,
-      );
-    },
-    kalauKosong: Laporan(
-      periode: periode,
-      omzet: 0,
-      transaksi: 0,
-      item: 0,
-      harian: const [],
-      terlaris: const [],
-      metode: const [],
-    ),
-  );
+  static Future<Laporan> laporan(Periode periode) async {
+    final j = await api.get('/laporan', {
+      'periode': periodeKeString(periode),
+    });
+    return laporanDariJson(j);
+  }
 }

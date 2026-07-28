@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../data/contoh.dart';
 import '../data/model.dart';
 import '../data/repositori.dart';
 import '../theme/app_theme.dart';
@@ -12,6 +11,7 @@ import '../widgets/blok_foto.dart';
 import '../widgets/chip_kategori.dart';
 import '../widgets/keadaan.dart';
 import '../widgets/rangka.dart';
+import '../widgets/tombol_pil.dart';
 
 /// Layar kasir. Mode layar penuh, bukan tab.
 ///
@@ -68,9 +68,18 @@ class _KasirScreenState extends State<KasirScreen> {
   int get _total => _isiKeranjang.fold(0, (n, i) => n + i.subtotal);
   int get _jumlahItem => _keranjang.values.fold(0, (n, j) => n + j);
 
+  /// Jumlah maksimum yang boleh masuk keranjang.
+  ///
+  /// Produk tanpa pelacakan stok tidak punya batas — itu memang artinya tidak
+  /// dilacak. Yang dilacak berhenti di sisanya: keranjang berisi 8 sementara
+  /// raknya berisi 3 adalah janji yang tidak bisa ditepati, dan baru ketahuan
+  /// saat pembeli sudah membayar.
+  int _batas(Produk p) => p.lacakStok ? p.stok : 1 << 31;
+
   void _ubah(String id, int delta) {
     setState(() {
-      final baru = (_keranjang[id] ?? 0) + delta;
+      final p = _semua.firstWhere((e) => e.id == id);
+      final baru = ((_keranjang[id] ?? 0) + delta).clamp(0, _batas(p));
       if (baru <= 0) {
         _keranjang.remove(id);
       } else {
@@ -81,34 +90,47 @@ class _KasirScreenState extends State<KasirScreen> {
 
   void _kosongkan() => setState(_keranjang.clear);
 
-  /// Buka layar pembayaran.
+  /// Buka layar pembayaran, lalu **selalu** samakan keranjang dengan apa yang
+  /// dibawa kembali layar itu.
   ///
-  /// Keranjang baru dikosongkan SETELAH layar itu selesai dan transaksinya
-  /// benar-benar tersimpan — kalau dikosongkan lebih dulu, kasir yang menekan
-  /// batal atau kehilangan koneksi akan kehilangan seluruh pesanannya.
+  /// Dua keadaan, satu jalan pulang. Transaksi yang tersimpan mengembalikan
+  /// pesanan kosong sehingga keranjang ikut kosong; yang dibatalkan
+  /// mengembalikan pesanan apa adanya — termasuk baris yang barusan ditambah
+  /// atau dihapus di layar bayar. Yang dulu dilakukan di sini — menebak dari
+  /// nomor struk terakhir apakah transaksinya jadi — tidak pernah bisa benar:
+  /// nomornya dibaca setelah layar bayar menutup diri, jadi ia selalu
+  /// dibandingkan dengan dirinya sendiri.
   Future<void> _bayar() async {
     final item = _isiKeranjang;
     if (item.isEmpty) return;
 
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
+    final hasil = await Navigator.of(context).push<HasilKasir>(
+      MaterialPageRoute<HasilKasir>(
         builder: (_) => BayarScreen(
           item: item,
           nomorStruk: Repositori.nomorStrukBerikutnya(),
         ),
       ),
     );
-    if (!mounted) return;
+    if (!mounted || hasil == null) return;
 
-    // Transaksi tersimpan kalau daftar transaksi bertambah; layar bayar sendiri
-    // tidak perlu melaporkan apa pun kembali ke sini.
-    final tersimpan =
-        transaksiContoh.isNotEmpty &&
-        transaksiContoh.first.nomorStruk != _strukSaatMasuk;
     // Daftar produknya sendiri tidak perlu dimuat ulang di sini: menyimpan
     // transaksi menaikkan `revisiData`, dan `Bingkai` yang membungkus layar ini
     // sudah mendengarkannya — termasuk untuk memperbarui stok yang baru turun.
-    if (tersimpan) _kosongkan();
+    setState(() {
+      _keranjang.clear();
+      for (final i in hasil.item) {
+        _keranjang[i.produk.id] = i.jumlah;
+      }
+      // Pembeli berikutnya memulai dari katalog penuh. Saringan yang tertinggal
+      // dari pesanan sebelumnya membuat produk pertama yang dicari seolah
+      // menghilang.
+      if (hasil.selesai) {
+        _kendaliCari.clear();
+        _cari = '';
+        _kategoriId = null;
+      }
+    });
   }
 
   void _bukaKeranjang() {
@@ -144,11 +166,6 @@ class _KasirScreenState extends State<KasirScreen> {
   /// Nomor struk yang akan dipakai transaksi ini — dihitung Repositori dari
   /// struk terakhir, bukan dikarang di layar.
   String get _strukBerikutnya => Repositori.nomorStrukBerikutnya();
-
-  /// Nomor struk terakhir saat layar bayar dibuka, untuk mengetahui apakah
-  /// transaksinya jadi tersimpan.
-  String get _strukSaatMasuk =>
-      transaksiContoh.isEmpty ? '' : transaksiContoh.first.nomorStruk;
 
   Future<void> _tanyaKosongkan() async {
     // Mengosongkan keranjang membuang pekerjaan yang tidak bisa dikembalikan,
@@ -215,26 +232,25 @@ class _KasirScreenState extends State<KasirScreen> {
             ),
           ],
         ),
+        // Dua pil setinggi sama, bukan satu tombol teks di sebelah satu ikon
+        // bulat. Keduanya mengurus benda yang sama — keranjang — jadi mereka
+        // harus terbaca sebagai sepasang kontrol, bukan dua hal yang kebetulan
+        // bertetangga.
         actions: [
-          if (_jumlahItem > 0)
+          if (_jumlahItem > 0) ...[
             _TombolKosongkan(ringkas: ringkas, onTekan: _tanyaKosongkan),
+            const SizedBox(width: Jarak.xs3),
+          ],
           // Keranjang butuh jalan masuk yang selalu di tempat yang sama.
           // Sebelum ini satu-satunya cara membukanya adalah mengetuk bilah
           // mengambang — yang justru tidak ada saat keranjang masih kosong,
           // jadi tidak pernah ada tempat untuk belajar bahwa ia bisa dibuka.
           if (!duaPanel)
             Padding(
-              padding: const EdgeInsets.only(right: Jarak.xs2),
-              child: Badge(
-                isLabelVisible: _jumlahItem > 0,
-                label: Text('$_jumlahItem'),
-                backgroundColor: context.aksen.fokus,
-                textColor: context.aksen.atasFokus,
-                child: IconButton.filledTonal(
-                  onPressed: _jumlahItem == 0 ? null : _bukaKeranjang,
-                  icon: const Icon(Icons.shopping_bag_outlined),
-                  tooltip: 'Lihat keranjang',
-                ),
+              padding: const EdgeInsets.only(right: Jarak.xs),
+              child: _TombolKeranjang(
+                jumlah: _jumlahItem,
+                onTekan: _jumlahItem == 0 ? null : _bukaKeranjang,
               ),
             ),
         ],
@@ -454,6 +470,13 @@ class _Katalog extends StatelessWidget {
   }
 }
 
+/// Kartu produk di katalog kasir.
+///
+/// **Seluruh kartunya tombol tambah.** Tombol "+" berukuran 34 px di pojok
+/// kanan bawah adalah sasaran yang harus dibidik; kartunya sendiri sasaran
+/// selebar 230 px yang tidak bisa meleset. Stepper-nya tetap ada — ia yang
+/// mengurangi, dan ia yang memperlihatkan berapa yang sudah masuk — tapi ia
+/// tidak lagi jadi satu-satunya jalan untuk menambah.
 class _KartuProduk extends StatelessWidget {
   const _KartuProduk({
     required this.produk,
@@ -467,82 +490,110 @@ class _KartuProduk extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final a = context.aksen;
     final habis = produk.habis;
+    final penuh = produk.lacakStok && jumlah >= produk.stok;
+    final bolehTambah = !habis && !penuh;
+    final terpilih = jumlah > 0;
 
     return Opacity(
       opacity: habis ? 0.5 : 1,
       child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(Jarak.xs2),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: Stack(
-                  children: [
-                    Positioned.fill(child: BlokFoto(url: produk.gambarUrl)),
-                    if (produk.menipis || habis)
-                      Positioned(
-                        left: 6,
-                        top: 6,
-                        child: _Pil(
-                          teks: habis ? 'Habis' : 'Sisa ${produk.stok}',
-                          bahaya: habis,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: Jarak.xs2),
-              Text(
-                produk.nama,
-                style: context.teks.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  height: 1.2,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: Jarak.xs3),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      rupiah(produk.hargaJual),
-                      style: context.teks.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (!habis) ...[
-                    if (jumlah > 0) ...[
-                      _TombolBundar(
-                        ikon: Icons.remove,
-                        onTekan: () => onUbah(-1),
-                      ),
-                      SizedBox(
-                        width: 26,
-                        child: Text(
-                          '$jumlah',
-                          textAlign: TextAlign.center,
-                          style: context.teks.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
+        clipBehavior: Clip.antiAlias,
+        // Kartu yang sudah masuk keranjang dibingkai tinta. Tanpa penanda
+        // setingkat kartu, satu-satunya bukti bahwa ketukan tadi berhasil
+        // adalah angka kecil di stepper — dan itu berada di tempat yang justru
+        // tertutup jempol saat mengetuk.
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(Lengkung.panel),
+          side: BorderSide(
+            color: terpilih ? a.fokus : context.warna.outline,
+            width: terpilih ? 1.5 : 1,
+          ),
+        ),
+        child: InkWell(
+          onTap: bolehTambah ? () => onUbah(1) : null,
+          child: Padding(
+            padding: const EdgeInsets.all(Jarak.xs2),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: Stack(
+                    children: [
+                      Positioned.fill(child: BlokFoto(url: produk.gambarUrl)),
+                      if (produk.menipis || habis)
+                        Positioned(
+                          left: 6,
+                          top: 6,
+                          child: _Pil(
+                            teks: habis ? 'Habis' : 'Sisa ${produk.stok}',
+                            bahaya: habis,
                           ),
                         ),
+                      if (terpilih)
+                        Positioned(
+                          right: 6,
+                          top: 6,
+                          child: _LencanaJumlah(jumlah: jumlah),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: Jarak.xs2),
+                Text(
+                  produk.nama,
+                  style: context.teks.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    height: 1.2,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: Jarak.xs3),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        rupiah(produk.hargaJual),
+                        style: context.teks.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (!habis) ...[
+                      if (terpilih) ...[
+                        TombolBundar(
+                          ikon: jumlah == 1
+                              ? Icons.delete_outline
+                              : Icons.remove,
+                          bahaya: jumlah == 1,
+                          onTekan: () => onUbah(-1),
+                        ),
+                        SizedBox(
+                          width: 26,
+                          child: Text(
+                            '$jumlah',
+                            textAlign: TextAlign.center,
+                            style: context.teks.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                      TombolBundar(
+                        ikon: Icons.add,
+                        utama: true,
+                        onTekan: bolehTambah ? () => onUbah(1) : null,
                       ),
                     ],
-                    _TombolBundar(
-                      ikon: Icons.add,
-                      utama: true,
-                      onTekan: () => onUbah(1),
-                    ),
                   ],
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -550,11 +601,46 @@ class _KartuProduk extends StatelessWidget {
   }
 }
 
-/// Tombol Kosongkan. Berlabel penuh kalau muat, ikon saja kalau tidak.
+/// Lencana jumlah di sudut foto — bukti seketika bahwa ketukan tadi masuk.
+class _LencanaJumlah extends StatelessWidget {
+  const _LencanaJumlah({required this.jumlah});
+
+  final int jumlah;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = context.aksen;
+    return Container(
+      constraints: const BoxConstraints(minWidth: 24),
+      height: 24,
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      decoration: BoxDecoration(
+        color: a.fokus,
+        borderRadius: BorderRadius.circular(Lengkung.bulat),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        '$jumlah',
+        style: context.teks.labelMedium?.copyWith(
+          color: a.atasFokus,
+          fontWeight: FontWeight.w800,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      ),
+    );
+  }
+}
+
+/// Tombol Kosongkan — pil bertinta bahaya lembut.
 ///
-/// Di bawah 380 px, "Kosongkan" + tombol keranjang + judul dua baris sudah
-/// saling mendorong. Menyusutkannya jadi ikon lebih baik daripada memotong
-/// judulnya jadi "Kasi…".
+/// Berlabel penuh kalau muat, ikon saja kalau tidak: di bawah 380 px,
+/// "Kosongkan" + tombol keranjang + judul dua baris sudah saling mendorong.
+/// Menyusutkannya jadi ikon lebih baik daripada memotong judulnya jadi "Kasi…".
+///
+/// Warnanya lembut, bukan merah penuh. Ia aksi merusak yang berdiri permanen di
+/// bilah atas selama keranjang terisi — merah pekat di sana akan berteriak
+/// sepanjang transaksi, dan yang berteriak terus-menerus akhirnya tidak
+/// didengar sama sekali.
 class _TombolKosongkan extends StatelessWidget {
   const _TombolKosongkan({required this.ringkas, required this.onTekan});
 
@@ -563,21 +649,116 @@ class _TombolKosongkan extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (ringkas) {
-      return IconButton(
-        onPressed: onTekan,
-        icon: const Icon(Icons.remove_shopping_cart_outlined),
-        tooltip: 'Kosongkan keranjang',
-        color: context.aksen.bahaya,
-      );
-    }
-    return TextButton.icon(
-      onPressed: onTekan,
-      icon: const Icon(Icons.remove_shopping_cart_outlined, size: 18),
-      label: const Text('Kosongkan'),
-      style: TextButton.styleFrom(
-        foregroundColor: context.aksen.bahaya,
-        padding: const EdgeInsets.symmetric(horizontal: Jarak.xs2),
+    final a = context.aksen;
+
+    return Tooltip(
+      message: 'Kosongkan keranjang',
+      child: Semantics(
+        button: true,
+        label: 'Kosongkan keranjang',
+        child: Material(
+          color: a.bahayaLembut,
+          borderRadius: BorderRadius.circular(Lengkung.bulat),
+          child: InkWell(
+            onTap: onTekan,
+            borderRadius: BorderRadius.circular(Lengkung.bulat),
+            child: Container(
+              height: 40,
+              padding: EdgeInsets.symmetric(
+                horizontal: ringkas ? Jarak.xs2 : Jarak.xs,
+              ),
+              alignment: Alignment.center,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.remove_shopping_cart_outlined,
+                    size: 19,
+                    color: a.bahaya,
+                  ),
+                  if (!ringkas) ...[
+                    const SizedBox(width: 6),
+                    Text(
+                      'Kosongkan',
+                      style: context.teks.labelLarge?.copyWith(
+                        color: a.bahaya,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Tombol keranjang di bilah atas.
+///
+/// Dua wujud dari satu tombol, bukan ikon berlencana: kosong ia garis samar
+/// yang mati, terisi ia pil tinta pekat berisi angka. Lencana Material yang
+/// menempel di pojok ikon mudah terlewat pada layar kecil — dan jumlah item
+/// adalah satu-satunya alasan tombol ini dilirik saat tangan sedang penuh.
+class _TombolKeranjang extends StatelessWidget {
+  const _TombolKeranjang({required this.jumlah, required this.onTekan});
+
+  final int jumlah;
+  final VoidCallback? onTekan;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = context.aksen;
+    final terisi = jumlah > 0;
+
+    return Tooltip(
+      message: terisi ? 'Lihat keranjang · $jumlah item' : 'Keranjang kosong',
+      child: Semantics(
+        button: true,
+        enabled: onTekan != null,
+        child: Material(
+          color: terisi ? a.fokus : Colors.transparent,
+          borderRadius: BorderRadius.circular(Lengkung.bulat),
+          child: InkWell(
+            onTap: onTekan,
+            borderRadius: BorderRadius.circular(Lengkung.bulat),
+            child: Container(
+              height: 40,
+              padding: const EdgeInsets.symmetric(horizontal: Jarak.xs),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(Lengkung.bulat),
+                border: Border.all(
+                  color: terisi ? a.fokus : context.warna.outline,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.shopping_bag_outlined,
+                    size: 20,
+                    color: terisi
+                        ? a.atasFokus
+                        : context.warna.onSurfaceVariant,
+                  ),
+                  if (terisi) ...[
+                    const SizedBox(width: 6),
+                    Text(
+                      '$jumlah',
+                      style: context.teks.labelLarge?.copyWith(
+                        color: a.atasFokus,
+                        fontWeight: FontWeight.w800,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -603,45 +784,6 @@ class _Pil extends StatelessWidget {
         style: context.teks.labelSmall?.copyWith(
           color: bahaya ? a.bahaya : a.peringatan,
           letterSpacing: 0,
-        ),
-      ),
-    );
-  }
-}
-
-class _TombolBundar extends StatelessWidget {
-  const _TombolBundar({
-    required this.ikon,
-    required this.onTekan,
-    this.utama = false,
-  });
-
-  final IconData ikon;
-  final VoidCallback onTekan;
-  final bool utama;
-
-  @override
-  Widget build(BuildContext context) {
-    final a = context.aksen;
-    return Semantics(
-      button: true,
-      child: InkWell(
-        onTap: onTekan,
-        customBorder: const CircleBorder(),
-        child: Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            color: utama ? a.fokus : context.warna.surfaceContainerLowest,
-            shape: BoxShape.circle,
-            border: Border.all(color: utama ? a.fokus : context.warna.outline),
-          ),
-          alignment: Alignment.center,
-          child: Icon(
-            ikon,
-            size: 18,
-            color: utama ? a.atasFokus : context.warna.onSurface,
-          ),
         ),
       ),
     );
@@ -773,7 +915,7 @@ class _PanelKeranjang extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Ketuk + pada produk untuk menambahkan.',
+                      'Ketuk kartu produk untuk menambahkan.',
                       textAlign: TextAlign.center,
                       style: context.teks.bodySmall?.copyWith(
                         color: context.warna.onSurfaceVariant,
@@ -833,9 +975,16 @@ class _IsiKeranjang extends StatelessWidget {
               Expanded(
                 child: Text('Keranjang', style: context.teks.titleLarge),
               ),
-              TextButton(
+              // Bertinta bahaya, sama seperti kembarannya di bilah atas.
+              // "Kosongkan" yang tampil netral di satu tempat dan merah di
+              // tempat lain membuat orang mengira keduanya berbeda akibat.
+              TextButton.icon(
                 onPressed: onKosongkan,
-                child: const Text('Kosongkan'),
+                icon: const Icon(Icons.remove_shopping_cart_outlined, size: 18),
+                label: const Text('Kosongkan'),
+                style: TextButton.styleFrom(
+                  foregroundColor: context.aksen.bahaya,
+                ),
               ),
             ],
           ),
@@ -903,8 +1052,9 @@ class _BarisKeranjang extends StatelessWidget {
             ),
           ),
           const SizedBox(width: Jarak.xs2),
-          _TombolBundar(
+          TombolBundar(
             ikon: item.jumlah == 1 ? Icons.delete_outline : Icons.remove,
+            bahaya: item.jumlah == 1,
             onTekan: () => onUbah(item.produk.id, -1),
           ),
           SizedBox(
@@ -917,10 +1067,12 @@ class _BarisKeranjang extends StatelessWidget {
               ),
             ),
           ),
-          _TombolBundar(
+          TombolBundar(
             ikon: Icons.add,
             utama: true,
-            onTekan: () => onUbah(item.produk.id, 1),
+            onTekan: item.produk.lacakStok && item.jumlah >= item.produk.stok
+                ? null
+                : () => onUbah(item.produk.id, 1),
           ),
         ],
       ),
@@ -981,9 +1133,19 @@ class _KakiKeranjang extends StatelessWidget {
               children: [
                 if (!tanpaKosongkan) ...[
                   Expanded(
-                    child: OutlinedButton(
+                    child: OutlinedButton.icon(
                       onPressed: onKosongkan,
-                      child: const Text('Kosongkan'),
+                      icon: const Icon(
+                        Icons.remove_shopping_cart_outlined,
+                        size: 18,
+                      ),
+                      label: const Text('Kosongkan'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: context.aksen.bahaya,
+                        side: BorderSide(
+                          color: context.aksen.bahaya.withValues(alpha: 0.35),
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(width: Jarak.xs2),

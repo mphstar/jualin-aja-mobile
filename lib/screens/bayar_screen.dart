@@ -5,9 +5,28 @@ import '../data/repositori.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../util/format.dart';
+import '../widgets/baris_pesanan.dart';
 import '../widgets/isian_uang.dart';
 import '../widgets/kartu.dart';
 import '../widgets/tombol_pil.dart';
+
+/// Apa yang dibawa kembali ke kasir saat layar bayar ditutup.
+///
+/// Dua hal sekaligus, dan keduanya wajib: **apakah transaksinya jadi** dan
+/// **isi keranjang yang terakhir berlaku**. Yang kedua ada karena pesanan bisa
+/// disunting di layar bayar — kalau kasir cuma diberi tahu "batal", ia akan
+/// kembali menampilkan keranjang versi lama, dan pembeli yang barusan
+/// membatalkan satu kopi akan ditagih kopi itu lagi.
+class HasilKasir {
+  const HasilKasir({required this.selesai, required this.item});
+
+  /// Transaksi tersimpan. Keranjang kasir harus dikosongkan.
+  final bool selesai;
+
+  final List<ItemKeranjang> item;
+
+  static const tersimpan = HasilKasir(selesai: true, item: []);
+}
 
 /// Layar pembayaran satu transaksi.
 ///
@@ -35,8 +54,17 @@ class _BayarScreenState extends State<BayarScreen> {
   bool _menyimpan = false;
   String? _galat;
 
-  int get _total => widget.item.fold(0, (n, i) => n + i.subtotal);
-  int get _jumlahItem => widget.item.fold(0, (n, i) => n + i.jumlah);
+  /// Salinan yang bisa disunting.
+  ///
+  /// Pesanan paling sering berubah justru di detik ini — pembeli melihat
+  /// totalnya, lalu membatalkan satu item atau menambah satu lagi. Memaksa
+  /// kasir menutup layar ini, membuka keranjang, mengubah, lalu menekan Bayar
+  /// sekali lagi adalah empat ketukan untuk satu perubahan yang terjadi hampir
+  /// setiap jam sibuk.
+  late final List<ItemKeranjang> _item = List.of(widget.item);
+
+  int get _total => _item.fold(0, (n, i) => n + i.subtotal);
+  int get _jumlahItem => _item.fold(0, (n, i) => n + i.jumlah);
 
   /// Nilai yang sedang diketik, tanpa titik pemisah.
   int get _diterima => bacaNominal(_uang.text);
@@ -54,6 +82,32 @@ class _BayarScreenState extends State<BayarScreen> {
     super.dispose();
   }
 
+  /// Ubah jumlah satu baris pesanan. Nol berarti barisnya dibuang.
+  ///
+  /// Keranjang yang jadi kosong menutup layar ini sendiri: tidak ada yang bisa
+  /// dibayar, dan halaman pembayaran bertotal Rp 0 hanya menyisakan tombol
+  /// yang tidak boleh ditekan.
+  void _ubah(String produkId, int delta) {
+    final i = _item.indexWhere((e) => e.produk.id == produkId);
+    if (i < 0) return;
+
+    setState(() {
+      final jumlah = _item[i].jumlah + delta;
+      if (jumlah <= 0) {
+        _item.removeAt(i);
+      } else {
+        _item[i] = ItemKeranjang(produk: _item[i].produk, jumlah: jumlah);
+      }
+    });
+
+    if (_item.isEmpty) _tutup();
+  }
+
+  /// Kembali ke kasir sambil membawa pesanan versi terakhir.
+  void _tutup() => Navigator.of(
+    context,
+  ).pop(HasilKasir(selesai: false, item: List.of(_item)));
+
   Future<void> _simpan() async {
     if (!_bolehSimpan) return;
     setState(() {
@@ -63,17 +117,13 @@ class _BayarScreenState extends State<BayarScreen> {
 
     try {
       final transaksi = await Repositori.simpanTransaksi(
-        item: widget.item,
+        item: _item,
         metode: _metode,
         status: StatusTransaksi.selesai,
         uangDiterima: _tunai ? _diterima : null,
       );
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(
-          builder: (_) => HasilBayarScreen(transaksi: transaksi),
-        ),
-      );
+      _keHasil(transaksi);
     } on GagalMuat catch (e) {
       if (!mounted) return;
       setState(() {
@@ -99,7 +149,7 @@ class _BayarScreenState extends State<BayarScreen> {
 
     try {
       final transaksi = await Repositori.simpanTransaksi(
-        item: widget.item,
+        item: _item,
         // Metode dicatat apa adanya sebagai tunai: piutang ini nantinya hampir
         // selalu dilunasi tunai, dan kalau ternyata bukan, pelunasannya yang
         // mengoreksi. Menambah metode "utang" akan mencemari laporan metode
@@ -109,11 +159,7 @@ class _BayarScreenState extends State<BayarScreen> {
         pelanggan: pelanggan,
       );
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(
-          builder: (_) => HasilBayarScreen(transaksi: transaksi),
-        ),
-      );
+      _keHasil(transaksi);
     } on GagalMuat catch (e) {
       if (!mounted) return;
       setState(() {
@@ -123,85 +169,142 @@ class _BayarScreenState extends State<BayarScreen> {
     }
   }
 
+  /// Ganti layar ini dengan layar hasil, sambil **langsung** memberi tahu kasir
+  /// bahwa transaksinya tersimpan.
+  ///
+  /// Kabarnya dikirim sekarang, bukan nanti saat layar hasil ditutup: begitu
+  /// transaksi tercatat, keranjang lama sudah tidak berlaku. Menunda sampai
+  /// pengguna menekan "Transaksi baru" berarti ada jendela waktu — sekecil apa
+  /// pun — ketika penjualan sudah masuk tapi keranjangnya masih terisi.
+  void _keHasil(Transaksi transaksi) {
+    Navigator.of(context).pushReplacement<void, HasilKasir>(
+      MaterialPageRoute<void>(
+        builder: (_) => HasilBayarScreen(transaksi: transaksi),
+      ),
+      result: HasilKasir.tersimpan,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Pembayaran'),
-        leading: IconButton(
-          onPressed: _menyimpan ? null : () => Navigator.of(context).maybePop(),
-          icon: const Icon(Icons.close),
-          tooltip: 'Batal',
+    return PopScope(
+      // Ditahan supaya tombol kembali perangkat pun ikut membawa pesanan yang
+      // barusan disunting; pop tanpa hasil akan membuat kasir memakai
+      // keranjang versi lama.
+      canPop: false,
+      onPopInvokedWithResult: (sudah, _) {
+        if (!sudah && !_menyimpan) _tutup();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Pembayaran'),
+          leading: IconButton(
+            onPressed: _menyimpan ? null : _tutup,
+            icon: const Icon(Icons.close),
+            tooltip: 'Batal',
+          ),
         ),
-      ),
-      body: SafeArea(
-        top: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: Column(
-              children: [
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(
-                      Jarak.sm,
-                      Jarak.xs,
-                      Jarak.sm,
-                      Jarak.sm,
-                    ),
-                    children: [
-                      PanelAngka(
-                        label: 'Total tagihan',
-                        nilai: rupiah(_total),
-                        keterangan:
-                            '$_jumlahItem item · ${widget.nomorStruk}',
+        body: SafeArea(
+          top: false,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(
+                        Jarak.sm,
+                        Jarak.xs,
+                        Jarak.sm,
+                        Jarak.sm,
                       ),
-                      const SizedBox(height: Jarak.sm),
+                      children: [
+                        PanelAngka(
+                          label: 'Total tagihan',
+                          nilai: rupiah(_total),
+                          keterangan:
+                              '$_jumlahItem item · ${widget.nomorStruk}',
+                        ),
+                        const SizedBox(height: Jarak.sm),
 
-                      const JudulBagian('Metode pembayaran'),
-                      KartuDaftar(
-                        anak: [
-                          for (final m in MetodeBayar.values)
-                            PilihanMetode(
-                              metode: m,
-                              terpilih: _metode == m,
-                              onTekan: () => setState(() => _metode = m),
+                        JudulBagian(
+                          'Pesanan',
+                          aksi: Text(
+                            '$_jumlahItem item',
+                            style: context.teks.bodySmall?.copyWith(
+                              color: context.warna.onSurfaceVariant,
                             ),
+                          ),
+                        ),
+                        KartuDaftar(
+                          anak: [
+                            for (final i in _item)
+                              BarisPesanan(
+                                nama: i.produk.nama,
+                                gambarUrl: i.produk.gambarUrl,
+                                hargaSatuan: i.produk.hargaJual,
+                                jumlah: i.jumlah,
+                                aktif: !_menyimpan,
+                                // Produk berstok terlacak tidak boleh melewati
+                                // sisanya: menaikkannya di sini berarti menjual
+                                // barang yang tidak ada, dan stoknya sudah tidak
+                                // bisa dikoreksi setelah struknya tercetak.
+                                bolehTambah:
+                                    !i.produk.lacakStok ||
+                                    i.jumlah < i.produk.stok,
+                                onKurang: () => _ubah(i.produk.id, -1),
+                                onTambah: () => _ubah(i.produk.id, 1),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: Jarak.sm),
+
+                        const JudulBagian('Metode pembayaran'),
+                        KartuDaftar(
+                          anak: [
+                            for (final m in MetodeBayar.values)
+                              PilihanMetode(
+                                metode: m,
+                                terpilih: _metode == m,
+                                onTekan: () => setState(() => _metode = m),
+                              ),
+                          ],
+                        ),
+
+                        if (_tunai) ...[
+                          const SizedBox(height: Jarak.sm),
+                          const JudulBagian('Uang diterima'),
+                          IsianUang(
+                            pengendali: _uang,
+                            total: _total,
+                            onUbah: () => setState(() {}),
+                          ),
+                          const SizedBox(height: Jarak.xs2),
+                          BarisKembalian(
+                            kembalian: _kembalian,
+                            diisi: _diterima > 0,
+                          ),
+                        ] else ...[
+                          const SizedBox(height: Jarak.sm),
+                          CatatanNonTunai(metode: _metode, total: _total),
                         ],
-                      ),
 
-                      if (_tunai) ...[
-                        const SizedBox(height: Jarak.sm),
-                        const JudulBagian('Uang diterima'),
-                        IsianUang(
-                          pengendali: _uang,
-                          total: _total,
-                          onUbah: () => setState(() {}),
-                        ),
-                        const SizedBox(height: Jarak.xs2),
-                        BarisKembalian(
-                          kembalian: _kembalian,
-                          diisi: _diterima > 0,
-                        ),
-                      ] else ...[
-                        const SizedBox(height: Jarak.sm),
-                        CatatanNonTunai(metode: _metode, total: _total),
+                        if (_galat != null) ...[
+                          const SizedBox(height: Jarak.sm),
+                          BarisGalat(pesan: _galat!),
+                        ],
                       ],
-
-                      if (_galat != null) ...[
-                        const SizedBox(height: Jarak.sm),
-                        BarisGalat(pesan: _galat!),
-                      ],
-                    ],
+                    ),
                   ),
-                ),
-                _KakiAksi(
-                  bolehSimpan: _bolehSimpan,
-                  menyimpan: _menyimpan,
-                  onSimpan: _simpan,
-                  onBayarNanti: _bayarNanti,
-                ),
-              ],
+                  _KakiAksi(
+                    bolehSimpan: _bolehSimpan,
+                    menyimpan: _menyimpan,
+                    onSimpan: _simpan,
+                    onBayarNanti: _bayarNanti,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -423,7 +526,7 @@ class HasilBayarScreen extends StatelessWidget {
 
                           if (kembalian != null && !piutang) ...[
                             const SizedBox(height: Jarak.lg),
-                            _PanelKembalian(nilai: kembalian),
+                            PanelKembalian(nilai: kembalian),
                           ],
 
                           const SizedBox(height: Jarak.lg),
@@ -452,15 +555,22 @@ class HasilBayarScreen extends StatelessWidget {
                       Jarak.md,
                       Jarak.sm,
                     ),
+                    // Keduanya selebar penuh dan setinggi sama: dua tombol yang
+                    // bertumpuk dengan lebar berbeda terbaca seperti satu
+                    // tombol utama dan satu sisa, padahal mencetak struk sama
+                    // sahnya dengan memulai transaksi berikutnya.
                     child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         TombolPil(
                           label: 'Transaksi baru',
                           onTekan: () => Navigator.of(context).pop(),
                         ),
                         const SizedBox(height: Jarak.xs2),
-                        OutlinedButton.icon(
-                          onPressed: () => ScaffoldMessenger.of(context)
+                        TombolPilGaris(
+                          ikon: Icons.print_outlined,
+                          label: 'Cetak struk',
+                          onTekan: () => ScaffoldMessenger.of(context)
                             ..hideCurrentSnackBar()
                             ..showSnackBar(
                               const SnackBar(
@@ -470,8 +580,6 @@ class HasilBayarScreen extends StatelessWidget {
                                 ),
                               ),
                             ),
-                          icon: const Icon(Icons.print_outlined, size: 20),
-                          label: const Text('Cetak struk'),
                         ),
                       ],
                     ),
@@ -481,51 +589,6 @@ class HasilBayarScreen extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _PanelKembalian extends StatelessWidget {
-  const _PanelKembalian({required this.nilai});
-
-  final int nilai;
-
-  @override
-  Widget build(BuildContext context) {
-    final a = context.aksen;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Jarak.sm,
-        vertical: Jarak.md,
-      ),
-      decoration: BoxDecoration(
-        color: nilai > 0 ? a.suksesLembut : a.isian,
-        borderRadius: BorderRadius.circular(Lengkung.panel),
-      ),
-      child: Column(
-        children: [
-          Text(
-            nilai > 0 ? 'KEMBALIAN' : 'UANG PAS',
-            style: context.teks.labelSmall?.copyWith(
-              color: nilai > 0 ? a.sukses : context.warna.onSurfaceVariant,
-              letterSpacing: 1,
-            ),
-          ),
-          if (nilai > 0) ...[
-            const SizedBox(height: Jarak.xs3),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                rupiah(nilai),
-                style: context.teks.displaySmall?.copyWith(
-                  color: a.sukses,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-            ),
-          ],
-        ],
       ),
     );
   }

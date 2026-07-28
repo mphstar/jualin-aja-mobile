@@ -9,6 +9,7 @@
  */
 import 'package:flutter/material.dart';
 
+import 'data/repositori.dart';
 import 'screens/akun_screen.dart';
 import 'screens/beranda_screen.dart';
 import 'screens/kasir_screen.dart';
@@ -29,34 +30,42 @@ class AplikasiPos extends StatefulWidget {
   State<AplikasiPos> createState() => _AplikasiPosState();
 }
 
-/// Tiga tahap sebelum aplikasi sesungguhnya terbuka.
-///
-/// Dipisah jadi enum, bukan dua boolean, supaya keadaan mustahil seperti
-/// "sudah masuk tapi masih di alur pembuka" tidak bisa diwakili sama sekali.
-enum _Tahap { sambutan, masuk, aplikasi }
+/// Empat tahap: memuat (cek token) → sambutan → masuk → aplikasi.
+enum _Tahap { memuat, sambutan, masuk, aplikasi }
 
 class _AplikasiPosState extends State<AplikasiPos> {
-  // Tahap tampilan: tema dan sesi dipegang di sini saja. Saat state management
-  // dipilih, ini yang pertama pindah — tidak ada layar yang bergantung padanya.
   ThemeMode _mode = ThemeMode.light;
-  _Tahap _tahap = _Tahap.sambutan;
+  _Tahap _tahap = _Tahap.memuat;
 
-  // Kunci navigator dipegang di sini karena `context` milik state ini berada
-  // DI ATAS MaterialApp — `Navigator.of(context)` dari sini tidak akan
-  // menemukan navigator mana pun.
   final _kunciNavigator = GlobalKey<NavigatorState>();
 
   bool get _gelap => _mode == ThemeMode.dark;
+
+  @override
+  void initState() {
+    super.initState();
+    _cekSesi();
+  }
+
+  /// Periksa apakah ada token tersimpan yang masih sah.
+  Future<void> _cekSesi() async {
+    final sesi = await Repositori.cekSesi();
+    if (!mounted) return;
+    setState(() => _tahap = sesi != null ? _Tahap.aplikasi : _Tahap.sambutan);
+  }
 
   void _gantiTema() =>
       setState(() => _mode = _gelap ? ThemeMode.light : ThemeMode.dark);
 
   void _keTahap(_Tahap tahap) {
-    // Alur pembuka menumpuk rutenya sendiri (sambutan → usaha → tujuan).
-    // Tanpa membersihkan tumpukan itu, tombol kembali perangkat akan
-    // memundurkan pengguna dari aplikasi ke layar pertanyaan.
     _kunciNavigator.currentState?.popUntil((r) => r.isFirst);
     setState(() => _tahap = tahap);
+  }
+
+  Future<void> _keluar() async {
+    await Repositori.keluar();
+    if (!mounted) return;
+    _keTahap(_Tahap.sambutan);
   }
 
   @override
@@ -69,6 +78,9 @@ class _AplikasiPosState extends State<AplikasiPos> {
       darkTheme: TemaAplikasi.gelap(),
       themeMode: _mode,
       home: switch (_tahap) {
+        _Tahap.memuat => const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        ),
         _Tahap.sambutan => SambutanScreen(
           onSelesai: () => _keTahap(_Tahap.masuk),
           onSudahPunyaAkun: () => _keTahap(_Tahap.masuk),
@@ -80,7 +92,7 @@ class _AplikasiPosState extends State<AplikasiPos> {
         _Tahap.aplikasi => Beranda(
           onGantiTema: _gantiTema,
           gelap: _gelap,
-          onKeluar: () => _keTahap(_Tahap.sambutan),
+          onKeluar: _keluar,
         ),
       },
     );

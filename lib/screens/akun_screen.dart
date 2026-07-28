@@ -13,6 +13,7 @@ import '../widgets/kartu.dart';
 import '../widgets/lencana.dart';
 import '../widgets/rangka.dart';
 import 'kategori_screen.dart';
+import 'profil_screen.dart';
 import 'struk_screen.dart';
 import 'toko_screen.dart';
 import 'perpanjang_screen.dart';
@@ -41,7 +42,13 @@ class AkunScreen extends StatelessWidget {
         // Profil menggantikan judul "Akun". Di layar yang seluruh isinya
         // tentang satu orang dan satu toko, kata "Akun" tidak menambah apa pun
         // yang tidak sudah terbaca dari nama tokonya sendiri.
-        const _KepalaProfil(),
+        //
+        // Ikut mendengarkan [revisiData] karena nama dan tokonya bisa berubah
+        // dari dua layar yang dibuka dari sini juga.
+        ListenableBuilder(
+          listenable: revisiData,
+          builder: (context, _) => const _KepalaProfil(),
+        ),
         const SizedBox(height: Jarak.md),
 
         // Langganan adalah permukaan fokus layar ini — satu-satunya hal di
@@ -154,13 +161,16 @@ class AkunScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: Jarak.xs),
-        Center(
-          child: Text(
-            '$namaToko · $emailPemilik',
-            style: context.teks.bodySmall?.copyWith(
-              color: context.warna.onSurfaceVariant,
+        ListenableBuilder(
+          listenable: revisiData,
+          builder: (context, _) => Center(
+            child: Text(
+              '${tokoContoh.nama} · ${profilContoh.email}',
+              style: context.teks.bodySmall?.copyWith(
+                color: context.warna.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
           ),
         ),
       ],
@@ -214,6 +224,8 @@ class _KepalaProfil extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final a = context.aksen;
+    final profil = profilContoh;
+
     return Row(
       children: [
         Container(
@@ -222,7 +234,7 @@ class _KepalaProfil extends StatelessWidget {
           decoration: BoxDecoration(color: a.fokus, shape: BoxShape.circle),
           alignment: Alignment.center,
           child: Text(
-            inisial(namaPemilik),
+            inisial(profil.nama),
             style: context.teks.titleLarge?.copyWith(color: a.atasFokus),
           ),
         ),
@@ -232,14 +244,14 @@ class _KepalaProfil extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                namaToko,
+                tokoContoh.nama,
                 style: context.teks.headlineSmall,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 2),
               Text(
-                '$namaPemilik · Pemilik',
+                '${profil.nama} · ${profil.peran}',
                 style: context.teks.bodyMedium?.copyWith(
                   color: context.warna.onSurfaceVariant,
                 ),
@@ -250,7 +262,9 @@ class _KepalaProfil extends StatelessWidget {
           ),
         ),
         IconButton(
-          onPressed: () => AkunScreen._menyusul(context, 'Ubah profil'),
+          onPressed: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute<void>(builder: (_) => const ProfilScreen())),
           icon: const Icon(Icons.edit_outlined),
           tooltip: 'Ubah profil',
         ),

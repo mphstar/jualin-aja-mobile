@@ -49,6 +49,110 @@ class TombolPil extends StatelessWidget {
   }
 }
 
+/// Pasangan bergaris [TombolPil] — bentuk, tinggi, dan lebarnya identik.
+///
+/// Ada supaya dua tombol yang bertumpuk di kaki halaman ("Transaksi baru" di
+/// atas "Cetak struk") berdiri sebagai satu blok. `OutlinedButton` biasa
+/// melebar seukuran teksnya sendiri, dan tombol yang lebih pendek dari tombol
+/// di atasnya terbaca seperti aksi kelas dua yang setengah jadi — padahal ia
+/// pilihan sah yang cuma kalah penting.
+class TombolPilGaris extends StatelessWidget {
+  const TombolPilGaris({
+    super.key,
+    required this.label,
+    required this.onTekan,
+    this.ikon,
+  });
+
+  final String label;
+  final VoidCallback? onTekan;
+  final IconData? ikon;
+
+  @override
+  Widget build(BuildContext context) {
+    final gaya = OutlinedButton.styleFrom(
+      shape: const StadiumBorder(),
+      minimumSize: const Size(0, 54),
+      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+    );
+
+    return SizedBox(
+      height: 54,
+      width: double.infinity,
+      child: ikon == null
+          ? OutlinedButton(onPressed: onTekan, style: gaya, child: Text(label))
+          : OutlinedButton.icon(
+              onPressed: onTekan,
+              style: gaya,
+              icon: Icon(ikon, size: 20),
+              label: Text(label),
+            ),
+    );
+  }
+}
+
+/// Tombol bundar 34 px untuk stepper kuantitas.
+///
+/// Dipakai di kartu produk kasir, daftar keranjang, dan daftar pesanan di layar
+/// bayar. Satu bentuk untuk ketiganya, sengaja: menambah satu item harus terasa
+/// sama di mana pun ia ditekan, atau jari kasir harus belajar tiga kali.
+class TombolBundar extends StatelessWidget {
+  const TombolBundar({
+    super.key,
+    required this.ikon,
+    required this.onTekan,
+    this.utama = false,
+    this.bahaya = false,
+  });
+
+  final IconData ikon;
+
+  /// Null berarti nonaktif — mis. stok sudah mentok.
+  final VoidCallback? onTekan;
+
+  final bool utama;
+
+  /// Menandai tombol yang membuang barisnya, bukan sekadar menguranginya.
+  final bool bahaya;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = context.aksen;
+    final mati = onTekan == null;
+
+    final isi = utama ? a.fokus : context.warna.surfaceContainerLowest;
+    final garis = utama
+        ? a.fokus
+        : (bahaya ? a.bahaya.withValues(alpha: 0.45) : context.warna.outline);
+    final ikonWarna = utama
+        ? a.atasFokus
+        : (bahaya ? a.bahaya : context.warna.onSurface);
+
+    return Semantics(
+      button: true,
+      enabled: !mati,
+      child: Opacity(
+        opacity: mati ? 0.4 : 1,
+        child: InkWell(
+          onTap: onTekan,
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: isi,
+              shape: BoxShape.circle,
+              border: Border.all(color: garis),
+            ),
+            alignment: Alignment.center,
+            child: Icon(ikon, size: 18, color: ikonWarna),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Titik penanda halaman untuk carousel pembuka.
 class TitikHalaman extends StatelessWidget {
   const TitikHalaman({super.key, required this.jumlah, required this.aktif});

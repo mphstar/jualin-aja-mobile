@@ -18,11 +18,8 @@ class Kategori {
   /// Ikon untuk chip kategori bundar di layar kasir.
   final IconData ikon;
 
-  Kategori salin({String? nama, IconData? ikon}) => Kategori(
-    id: id,
-    nama: nama ?? this.nama,
-    ikon: ikon ?? this.ikon,
-  );
+  Kategori salin({String? nama, IconData? ikon}) =>
+      Kategori(id: id, nama: nama ?? this.nama, ikon: ikon ?? this.ikon);
 }
 
 /// Ikon yang boleh dipilih untuk kategori.
@@ -195,6 +192,7 @@ class Transaksi {
   bool get piutang => status == StatusTransaksi.ditahan;
 
   Transaksi salin({
+    List<BarisStruk>? baris,
     MetodeBayar? metode,
     StatusTransaksi? status,
     int? uangDiterima,
@@ -202,7 +200,7 @@ class Transaksi {
     id: id,
     nomorStruk: nomorStruk,
     waktu: waktu,
-    baris: baris,
+    baris: baris ?? this.baris,
     metode: metode ?? this.metode,
     status: status ?? this.status,
     pelanggan: pelanggan,
@@ -238,6 +236,37 @@ class Toko {
     jenisUsaha: jenisUsaha ?? this.jenisUsaha,
     alamat: alamat ?? this.alamat,
     telepon: telepon ?? this.telepon,
+  );
+}
+
+/// Orang yang memakai aplikasi ini — bukan tokonya.
+///
+/// Sengaja terpisah dari [Toko]. Nama toko tercetak di struk dan dilihat
+/// pembeli; nama pemilik tidak tercetak di mana pun dan hanya dipakai untuk
+/// menyapa serta sebagai identitas masuk. Menyatukannya berarti mengganti
+/// nomor telepon pribadi ikut mengubah nomor yang tercetak di struk.
+class Profil {
+  const Profil({
+    required this.nama,
+    required this.email,
+    required this.telepon,
+    this.peran = 'Pemilik',
+  });
+
+  final String nama;
+  final String email;
+  final String telepon;
+
+  /// Belum bisa diubah dari aplikasi — akun pertama selalu pemilik. Ia ada di
+  /// sini supaya layar tidak menuliskan "Pemilik" sebagai teks mati yang
+  /// terlanjur benar hanya karena belum ada peran kedua.
+  final String peran;
+
+  Profil salin({String? nama, String? email, String? telepon}) => Profil(
+    nama: nama ?? this.nama,
+    email: email ?? this.email,
+    telepon: telepon ?? this.telepon,
+    peran: peran,
   );
 }
 
