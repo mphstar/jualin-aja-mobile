@@ -38,6 +38,7 @@ class LembarStruk extends StatelessWidget {
     final aksi = await showModalBottomSheet<_AksiStruk>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (_) => LembarStruk(transaksi: transaksi),
     );
     if (aksi == null || !context.mounted) return;
@@ -77,12 +78,13 @@ class LembarStruk extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(Jarak.sm, 0, Jarak.sm, Jarak.sm),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(Jarak.sm, 0, Jarak.sm, Jarak.sm),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
             Row(
               children: [
                 Expanded(
@@ -207,8 +209,9 @@ class LembarStruk extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 /// Sorotan piutang di dalam detail struk.

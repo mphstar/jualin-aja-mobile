@@ -57,7 +57,8 @@ class _FormProdukScreenState extends State<FormProdukScreen> {
     _satuan = TextEditingController(text: p?.satuan ?? 'pcs');
     _stok = TextEditingController(text: p == null ? '' : angka(p.stok));
     _kategori = List.of(widget.kategori);
-    _kategoriId = p?.kategoriId ?? _kategori.first.id;
+    _kategoriId =
+        p?.kategoriId ?? (_kategori.isNotEmpty ? _kategori.first.id : '');
     _lacakStok = p?.lacakStok ?? false;
   }
 
@@ -97,6 +98,11 @@ class _FormProdukScreenState extends State<FormProdukScreen> {
 
   Future<void> _simpan() async {
     if (!_kunciForm.currentState!.validate()) return;
+
+    if (_kategoriId.isEmpty) {
+      setState(() => _galat = 'Pilih atau buat kategori terlebih dahulu.');
+      return;
+    }
 
     setState(() {
       _menyimpan = true;

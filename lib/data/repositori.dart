@@ -106,6 +106,40 @@ abstract final class Repositori {
   // Auth
   // -------------------------------------------------------------------------
 
+  /// Pendaftaran mandiri toko baru. Mengembalikan data awal (profil, toko, langganan).
+  static Future<({Profil profil, Toko toko, Langganan langganan})> daftar({
+    required String nama,
+    required String email,
+    required String telepon,
+    required String namaToko,
+    required String jenisUsaha,
+    required String kota,
+    required String kataSandi,
+    required String kataSandiKonfirmasi,
+  }) async {
+    final j = await api.post('/auth/daftar', {
+      'nama': nama,
+      'email': email,
+      'telepon': telepon,
+      'namaToko': namaToko,
+      'jenisUsaha': jenisUsaha,
+      'kota': kota,
+      'kataSandi': kataSandi,
+      'kataSandi_confirmation': kataSandiKonfirmasi,
+      'perangkat': 'Aplikasi POS Flutter',
+    });
+
+    await api.simpanToken(j['token'] as String);
+
+    final profil = profilDariJson(j['profil'] as Map<String, dynamic>);
+    final toko = tokoDariJson(j['toko'] as Map<String, dynamic>);
+    final langganan = langgananDariJson(
+      j['langganan'] as Map<String, dynamic>,
+    );
+
+    return (profil: profil, toko: toko, langganan: langganan);
+  }
+
   /// Login ke backend. Mengembalikan data awal (profil, toko, langganan).
   static Future<({Profil profil, Toko toko, Langganan langganan})> masuk({
     required String email,
@@ -174,6 +208,31 @@ abstract final class Repositori {
     return daftar
         .map((e) => produkDariJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  static Future<({Uint8List bytes, String filename})> unduhFormatImporProduk() async {
+    final hasil = await api.getBytes('/produk/format-impor');
+    return (
+      bytes: hasil.bytes,
+      filename: hasil.filename ?? 'format_impor_produk.xlsx',
+    );
+  }
+
+  static Future<({Uint8List bytes, String filename})> eksporProduk() async {
+    final hasil = await api.getBytes('/produk/ekspor');
+    return (
+      bytes: hasil.bytes,
+      filename: hasil.filename ?? 'data_produk.xlsx',
+    );
+  }
+
+  static Future<Map<String, dynamic>> imporProduk(
+    Uint8List bytes,
+    String namaBerkas,
+  ) async {
+    final hasil = await api.uploadFile('/produk/impor', bytes, namaBerkas);
+    revisiData.value++;
+    return hasil;
   }
 
   static Future<List<Ebook>> ebook() async {

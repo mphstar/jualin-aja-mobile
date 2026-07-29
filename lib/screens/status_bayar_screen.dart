@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -39,6 +41,37 @@ class _StatusBayarScreenState extends State<StatusBayarScreen> {
   late Tagihan _tagihan = widget.tagihan;
   bool _memeriksa = false;
   String? _galat;
+  Timer? _pemantauTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _mulaiPemantauanOtomatis();
+  }
+
+  @override
+  void dispose() {
+    _pemantauTimer?.cancel();
+    super.dispose();
+  }
+
+  void _mulaiPemantauanOtomatis() {
+    if (_tagihan.statusKini != StatusBayar.menunggu) return;
+    _pemantauTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      if (_memeriksa || !mounted || _tagihan.statusKini != StatusBayar.menunggu) return;
+      try {
+        final hasil = await Repositori.periksaTagihan(_tagihan);
+        if (!mounted) return;
+        if (hasil.statusKini != StatusBayar.menunggu) {
+          _pemantauTimer?.cancel();
+          setState(() {
+            _tagihan = hasil;
+            _galat = null;
+          });
+        }
+      } catch (_) {}
+    });
+  }
 
   Future<void> _periksa() async {
     setState(() {
@@ -258,20 +291,30 @@ class _Instruksi extends StatelessWidget {
       return _KodeVa(
         bank: tagihan.saluran.label,
         kode: tagihan.kodeBayar ?? '—',
+        kodePerusahaan: tagihan.saluran == SaluranBayar.vaMandiri
+            ? (tagihan.kodePerusahaan ?? '70012')
+            : null,
       );
     }
-    return _PetakQris(saluran: tagihan.saluran);
+    return _PetakQris(tagihan: tagihan);
   }
 }
 
 class _KodeVa extends StatelessWidget {
-  const _KodeVa({required this.bank, required this.kode});
+  const _KodeVa({
+    required this.bank,
+    required this.kode,
+    this.kodePerusahaan,
+  });
 
   final String bank;
   final String kode;
+  final String? kodePerusahaan;
 
   @override
   Widget build(BuildContext context) {
+    final mandiri = kodePerusahaan != null;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(Jarak.sm),
@@ -285,6 +328,54 @@ class _KodeVa extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
+            if (mandiri) ...[
+              Text(
+                'Kode Perusahaan (Biller Code)',
+                style: context.teks.labelSmall?.copyWith(
+                  color: context.warna.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      kodePerusahaan!,
+                      style: context.teks.titleLarge?.copyWith(
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      await Clipboard.setData(ClipboardData(text: kodePerusahaan!));
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context)
+                        ..hideCurrentSnackBar()
+                        ..showSnackBar(
+                          const SnackBar(content: Text('Kode Perusahaan disalin.')),
+                        );
+                    },
+                    icon: const Icon(Icons.copy_outlined, size: 16),
+                    label: const Text('Salin'),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 36),
+                      padding: const EdgeInsets.symmetric(horizontal: Jarak.xs),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: Jarak.xs),
+              Text(
+                'Kode Bayar (Bill Key)',
+                style: context.teks.labelSmall?.copyWith(
+                  color: context.warna.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 2),
+            ],
             Row(
               children: [
                 Expanded(
@@ -301,9 +392,6 @@ class _KodeVa extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: Jarak.xs2),
-                // Menyalin nomor 16 digit dengan tangan adalah tempat paling
-                // sering transaksi gagal. Satu tombol menghapus seluruh
-                // kelas kesalahan itu.
                 OutlinedButton.icon(
                   onPressed: () async {
                     await Clipboard.setData(ClipboardData(text: kode));
@@ -311,13 +399,17 @@ class _KodeVa extends StatelessWidget {
                     ScaffoldMessenger.of(context)
                       ..hideCurrentSnackBar()
                       ..showSnackBar(
-                        const SnackBar(content: Text('Nomor VA disalin.')),
+                        SnackBar(
+                          content: Text(
+                            mandiri ? 'Kode Bayar disalin.' : 'Nomor VA disalin.',
+                          ),
+                        ),
                       );
                   },
                   icon: const Icon(Icons.copy_outlined, size: 16),
                   label: const Text('Salin'),
                   style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 40),
+                    minimumSize: const Size(0, 36),
                     padding: const EdgeInsets.symmetric(horizontal: Jarak.xs),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
@@ -327,11 +419,17 @@ class _KodeVa extends StatelessWidget {
             const SizedBox(height: Jarak.xs),
             Divider(height: 1, color: context.warna.outline),
             const SizedBox(height: Jarak.xs),
-            for (final (i, langkah) in const [
-              'Buka aplikasi bank atau ATM.',
-              'Pilih menu Transfer ke Virtual Account.',
-              'Masukkan nomor di atas, lalu bayar sesuai nominal.',
-            ].indexed) ...[
+            for (final (i, langkah) in (mandiri
+                ? const [
+                    'Buka aplikasi Livin\' by Mandiri atau ATM Mandiri.',
+                    'Pilih menu Bayar / Multipayment.',
+                    'Masukkan Kode Perusahaan & Kode Bayar di atas.',
+                  ]
+                : const [
+                    'Buka aplikasi bank atau ATM.',
+                    'Pilih menu Transfer ke Virtual Account.',
+                    'Masukkan nomor di atas, lalu bayar sesuai nominal.',
+                  ]).indexed) ...[
               if (i > 0) const SizedBox(height: 6),
               _Langkah(nomor: i + 1, teks: langkah),
             ],
@@ -378,18 +476,16 @@ class _Langkah extends StatelessWidget {
 }
 
 /// Tempat kode QR.
-///
-/// Sengaja **tidak** menggambar pola QR palsu. Kotak berpola yang tidak bisa
-/// dipindai adalah kebohongan yang baru ketahuan saat kasir sudah menyodorkan
-/// layarnya ke pelanggan. Penanda yang menyebut dirinya sendiri jauh lebih
-/// aman — dan ini memang benda yang sedang menunggu jawaban server.
 class _PetakQris extends StatelessWidget {
-  const _PetakQris({required this.saluran});
+  const _PetakQris({required this.tagihan});
 
-  final SaluranBayar saluran;
+  final Tagihan tagihan;
 
   @override
   Widget build(BuildContext context) {
+    final saluran = tagihan.saluran;
+    final adaQr = tagihan.qrUrl != null && tagihan.qrUrl!.isNotEmpty;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(Jarak.sm),
@@ -397,54 +493,131 @@ class _PetakQris extends StatelessWidget {
           children: [
             Container(
               width: double.infinity,
-              height: 176,
+              height: adaQr ? 220 : 176,
               decoration: BoxDecoration(
                 color: context.aksen.kartuAlt,
                 borderRadius: BorderRadius.circular(Lengkung.kontrol),
                 border: Border.all(color: context.aksen.garisRedup),
               ),
               alignment: Alignment.center,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    saluran == SaluranBayar.qris
-                        ? Icons.qr_code_2
-                        : Icons.account_balance_wallet_outlined,
-                    size: 36,
-                    color: context.warna.onSurfaceVariant,
-                  ),
-                  const SizedBox(height: Jarak.xs2),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: Jarak.sm),
-                    child: Text(
-                      saluran == SaluranBayar.qris
-                          ? 'Kode QR dibuat Midtrans saat backend tersambung.'
-                          : 'Tautan pembayaran GoPay dibuat Midtrans saat '
-                                'backend tersambung.',
-                      textAlign: TextAlign.center,
-                      style: context.teks.bodySmall?.copyWith(
-                        color: context.warna.onSurfaceVariant,
-                        height: 1.4,
+              child: adaQr
+                  ? Padding(
+                      padding: const EdgeInsets.all(Jarak.xs),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(Lengkung.kontrol),
+                        child: Image.network(
+                          tagihan.qrUrl!,
+                          fit: BoxFit.contain,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return const CircularProgressIndicator();
+                          },
+                          errorBuilder: (context, error, stackTrace) => Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.broken_image_outlined,
+                                size: 36,
+                                color: context.warna.onSurfaceVariant,
+                              ),
+                              const SizedBox(height: Jarak.xs2),
+                              Text(
+                                'Gagal memuat QR Code.',
+                                style: context.teks.bodySmall?.copyWith(
+                                  color: context.warna.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
+                    )
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          saluran == SaluranBayar.qris
+                              ? Icons.qr_code_2
+                              : Icons.account_balance_wallet_outlined,
+                          size: 36,
+                          color: context.warna.onSurfaceVariant,
+                        ),
+                        const SizedBox(height: Jarak.xs2),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: Jarak.sm),
+                          child: Text(
+                            saluran == SaluranBayar.qris
+                                ? 'Kode QR dibuat Midtrans saat backend tersambung.'
+                                : 'Tautan pembayaran GoPay dibuat Midtrans saat '
+                                      'backend tersambung.',
+                            textAlign: TextAlign.center,
+                            style: context.teks.bodySmall?.copyWith(
+                              color: context.warna.onSurfaceVariant,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
             ),
             const SizedBox(height: Jarak.xs),
             Text(
               saluran == SaluranBayar.qris
                   ? 'Pindai dengan aplikasi bank atau e-wallet apa pun yang '
                         'mendukung QRIS.'
-                  : 'Anda akan diarahkan ke aplikasi Gojek untuk menyelesaikan '
-                        'pembayaran.',
+                  : 'Pindai dengan aplikasi Gojek atau gunakan tautan pembayaran GoPay.',
               textAlign: TextAlign.center,
               style: context.teks.bodySmall?.copyWith(
                 color: context.warna.onSurfaceVariant,
                 height: 1.4,
               ),
             ),
+            if (adaQr) ...[
+              const SizedBox(height: Jarak.xs),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: tagihan.qrUrl!));
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context)
+                    ..hideCurrentSnackBar()
+                    ..showSnackBar(
+                      const SnackBar(
+                        content: Text('Tautan gambar QR disalin ke papan klip.'),
+                      ),
+                    );
+                },
+                icon: const Icon(Icons.copy_outlined, size: 16),
+                label: const Text('Salin Tautan Gambar QR'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 36),
+                  padding: const EdgeInsets.symmetric(horizontal: Jarak.sm),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
+            if (tagihan.tautanBayar != null && tagihan.tautanBayar!.isNotEmpty) ...[
+              const SizedBox(height: Jarak.xs2),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: tagihan.tautanBayar!));
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context)
+                    ..hideCurrentSnackBar()
+                    ..showSnackBar(
+                      const SnackBar(
+                        content: Text('Tautan pembayaran GoPay disalin.'),
+                      ),
+                    );
+                },
+                icon: const Icon(Icons.link_outlined, size: 16),
+                label: const Text('Salin Tautan GoPay'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 36),
+                  padding: const EdgeInsets.symmetric(horizontal: Jarak.sm),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ],
           ],
         ),
       ),

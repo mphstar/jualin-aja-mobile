@@ -212,6 +212,9 @@ Tagihan tagihanDariJson(Map<String, dynamic> j) => Tagihan(
   batasBayar: _tanggal(j['batasBayar']),
   berlakuSampai: _tanggal(j['berlakuSampai']),
   kodeBayar: j['kodeBayar'] as String?,
+  kodePerusahaan: j['kodePerusahaan'] as String?,
+  qrUrl: j['qrUrl'] as String?,
+  tautanBayar: j['tautanBayar'] as String?,
 );
 
 // ---------------------------------------------------------------------------

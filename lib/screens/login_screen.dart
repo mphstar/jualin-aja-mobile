@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../data/contoh.dart';
 import '../data/repositori.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
@@ -18,13 +17,19 @@ import '../widgets/tombol_pil.dart';
 /// simetri: formulir 400 px yang mengambang sendirian di tengah layar 1400 px
 /// tidak terbaca sebagai halaman, ia terbaca sebagai dialog yang lupa ditutup.
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key, required this.onMasuk, this.onKembali});
+  const LoginScreen({
+    super.key,
+    required this.onMasuk,
+    this.onKembali,
+    this.onDaftar,
+  });
 
   final VoidCallback onMasuk;
 
   /// Null berarti tidak ada tempat untuk mundur — layar masuk sedang jadi
   /// layar pertama, bukan lanjutan dari alur pembuka.
   final VoidCallback? onKembali;
+  final VoidCallback? onDaftar;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -32,8 +37,8 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _kunciForm = GlobalKey<FormState>();
-  final _email = TextEditingController(text: kredensialDemo.email);
-  final _sandi = TextEditingController(text: kredensialDemo.sandi);
+  final _email = TextEditingController();
+  final _sandi = TextEditingController();
   bool _lihatSandi = false;
   bool _memproses = false;
   String? _galat;
@@ -216,9 +221,30 @@ class _LoginScreenState extends State<LoginScreen> {
               child: const Text('Lupa kata sandi?'),
             ),
           ),
-
-          const SizedBox(height: Jarak.md),
-          const _KartuDemo(),
+          if (widget.onDaftar != null) ...[
+            const SizedBox(height: Jarak.xs2),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'Belum punya akun? ',
+                  style: context.teks.bodyMedium?.copyWith(
+                    color: context.warna.onSurfaceVariant,
+                  ),
+                ),
+                GestureDetector(
+                  onTap: widget.onDaftar,
+                  child: Text(
+                    'Daftar di sini',
+                    style: context.teks.bodyMedium?.copyWith(
+                      color: context.warna.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -279,47 +305,6 @@ class _BidangIdentitas extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _KartuDemo extends StatelessWidget {
-  const _KartuDemo();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(Jarak.xs),
-      decoration: BoxDecoration(
-        color: context.aksen.kartuAlt,
-        borderRadius: BorderRadius.circular(Lengkung.kontrol),
-        border: Border.all(color: context.warna.outline),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Akun demo',
-            style: context.teks.bodySmall?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            '${kredensialDemo.email} · ${kredensialDemo.sandi}',
-            style: context.teks.bodySmall?.copyWith(
-              color: context.warna.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Belum ada autentikasi sungguhan — kredensialnya sengaja terlihat.',
-            style: context.teks.bodySmall?.copyWith(
-              color: context.warna.onSurfaceVariant,
-            ),
-          ),
-        ],
       ),
     );
   }

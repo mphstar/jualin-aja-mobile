@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import 'data/repositori.dart';
 import 'screens/akun_screen.dart';
 import 'screens/beranda_screen.dart';
+import 'screens/daftar_screen.dart';
 import 'screens/kasir_screen.dart';
 import 'screens/laporan_screen.dart';
 import 'screens/login_screen.dart';
@@ -30,8 +31,8 @@ class AplikasiPos extends StatefulWidget {
   State<AplikasiPos> createState() => _AplikasiPosState();
 }
 
-/// Empat tahap: memuat (cek token) → sambutan → masuk → aplikasi.
-enum _Tahap { memuat, sambutan, masuk, aplikasi }
+/// Lima tahap: memuat (cek token) → sambutan → masuk → daftar → aplikasi.
+enum _Tahap { memuat, sambutan, masuk, daftar, aplikasi }
 
 class _AplikasiPosState extends State<AplikasiPos> {
   ThemeMode _mode = ThemeMode.light;
@@ -82,12 +83,17 @@ class _AplikasiPosState extends State<AplikasiPos> {
           body: Center(child: CircularProgressIndicator()),
         ),
         _Tahap.sambutan => SambutanScreen(
-          onSelesai: () => _keTahap(_Tahap.masuk),
+          onSelesai: () => _keTahap(_Tahap.daftar),
           onSudahPunyaAkun: () => _keTahap(_Tahap.masuk),
         ),
         _Tahap.masuk => LoginScreen(
           onMasuk: () => _keTahap(_Tahap.aplikasi),
           onKembali: () => _keTahap(_Tahap.sambutan),
+          onDaftar: () => _keTahap(_Tahap.daftar),
+        ),
+        _Tahap.daftar => DaftarScreen(
+          onBerhasilDaftar: () => _keTahap(_Tahap.aplikasi),
+          onMasuk: () => _keTahap(_Tahap.masuk),
         ),
         _Tahap.aplikasi => Beranda(
           onGantiTema: _gantiTema,

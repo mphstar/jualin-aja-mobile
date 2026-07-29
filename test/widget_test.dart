@@ -483,25 +483,13 @@ void main() {
     await ketuk(tester, find.text('Perpanjang langganan'));
   }
 
-  testWidgets('layar perpanjang menolak lanjut sebelum metode dipilih', (
+  testWidgets('layar perpanjang memilih QRIS sebagai metode pembayaran bawaan', (
     tester,
   ) async {
     ukuran(tester, 400);
     await keLayarBayar(tester);
 
-    // Durasi punya bawaan, metode tidak — jadi tombolnya mati dengan label
-    // yang menyebut apa yang kurang, bukan "Bayar sekarang" yang lalu menolak.
-    expect(find.text('Pilih metode pembayaran'), findsOneWidget);
-    expect(
-      tester
-          .widget<FilledButton>(
-            find.widgetWithText(FilledButton, 'Pilih metode pembayaran'),
-          )
-          .onPressed,
-      isNull,
-    );
-
-    await ketuk(tester, find.text('QRIS'));
+    // QRIS langsung terpilih secara bawaan sehingga tombol Bayar sekarang aktif.
     expect(find.widgetWithText(FilledButton, 'Bayar sekarang'), findsOneWidget);
   });
 

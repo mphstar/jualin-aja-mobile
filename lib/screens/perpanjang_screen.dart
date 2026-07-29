@@ -69,7 +69,7 @@ class _IsiState extends State<_Isi> {
   // dan sudah membawa hemat nyata. Bawaan termurah membuat pilihan lain
   // terlihat seperti membayar lebih mahal untuk hal yang sama.
   DurasiPaket _durasi = DurasiPaket.semesteran;
-  SaluranBayar? _saluran;
+  SaluranBayar? _saluran = SaluranBayar.qris;
   bool _memproses = false;
 
   Future<void> _bayar() async {

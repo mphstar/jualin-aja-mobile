@@ -20,6 +20,7 @@ class Keadaan extends StatelessWidget {
     required this.keterangan,
     this.labelAksi,
     this.onAksi,
+    this.aksiWidget,
     this.nada = NadaKeadaan.tenang,
   });
 
@@ -35,6 +36,7 @@ class Keadaan extends StatelessWidget {
   final String keterangan;
   final String? labelAksi;
   final VoidCallback? onAksi;
+  final Widget? aksiWidget;
   final NadaKeadaan nada;
 
   @override
@@ -90,7 +92,10 @@ class Keadaan extends StatelessWidget {
               ),
             ),
           ),
-          if (labelAksi != null && onAksi != null) ...[
+          if (aksiWidget != null) ...[
+            const SizedBox(height: Jarak.sm),
+            aksiWidget!,
+          ] else if (labelAksi != null && onAksi != null) ...[
             const SizedBox(height: Jarak.sm),
             OutlinedButton(onPressed: onAksi, child: Text(labelAksi!)),
           ],

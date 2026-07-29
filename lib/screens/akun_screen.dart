@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../data/contoh.dart';
 import '../data/model.dart';
 import '../data/repositori.dart';
 import '../theme/app_theme.dart';
@@ -63,22 +62,18 @@ class AkunScreen extends StatelessWidget {
         const SizedBox(height: Jarak.md),
 
         const JudulBagian('Toko'),
-        // Dua baris di bawah menampilkan angka yang bisa diubah dari layar
-        // yang mereka buka sendiri. Tanpa mendengarkan [revisiData], daftar
-        // ini masih menulis "4 kategori" tepat setelah pengguna menambah yang
-        // kelima — dan menu yang membantah layar yang baru saja ditutup adalah
-        // menu yang berhenti dipercaya.
-        ListenableBuilder(
-          listenable: revisiData,
-          builder: (context, _) => KartuDaftar(
+        Bingkai<({Toko toko, List<Kategori> kategori})>(
+          ambil: () async {
+            final t = await Repositori.toko();
+            final k = await Repositori.kategori();
+            return (toko: t, kategori: k);
+          },
+          rangka: KartuDaftar(
             anak: [
-              _BarisMenu(
+              const _BarisMenu(
                 ikon: Icons.storefront_outlined,
                 judul: 'Data toko',
-                keterangan: '${tokoContoh.jenisUsaha} · $kotaToko',
-                onTekan: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(builder: (_) => const TokoScreen()),
-                ),
+                keterangan: 'Memuat…',
               ),
               _BarisMenu(
                 ikon: Icons.receipt_outlined,
@@ -88,15 +83,10 @@ class AkunScreen extends StatelessWidget {
                   MaterialPageRoute<void>(builder: (_) => const StrukScreen()),
                 ),
               ),
-              _BarisMenu(
+              const _BarisMenu(
                 ikon: Icons.category_outlined,
                 judul: 'Kategori produk',
-                keterangan: '${kategoriContoh.length} kategori',
-                onTekan: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const KategoriScreen(),
-                  ),
-                ),
+                keterangan: 'Memuat…',
               ),
               _BarisMenu(
                 ikon: Icons.receipt_long_outlined,
@@ -110,6 +100,50 @@ class AkunScreen extends StatelessWidget {
               ),
             ],
           ),
+          isi: (context, data) {
+            final toko = data.toko;
+            final daftarKategori = data.kategori;
+            return KartuDaftar(
+              anak: [
+                _BarisMenu(
+                  ikon: Icons.storefront_outlined,
+                  judul: 'Data toko',
+                  keterangan: '${toko.jenisUsaha}${toko.alamat.isNotEmpty ? ' · ${toko.alamat}' : ''}',
+                  onTekan: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => const TokoScreen()),
+                  ),
+                ),
+                _BarisMenu(
+                  ikon: Icons.receipt_outlined,
+                  judul: 'Struk & printer',
+                  keterangan: 'Kepala struk dan perangkat cetak',
+                  onTekan: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(builder: (_) => const StrukScreen()),
+                  ),
+                ),
+                _BarisMenu(
+                  ikon: Icons.category_outlined,
+                  judul: 'Kategori produk',
+                  keterangan: '${daftarKategori.length} kategori',
+                  onTekan: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const KategoriScreen(),
+                    ),
+                  ),
+                ),
+                _BarisMenu(
+                  ikon: Icons.receipt_long_outlined,
+                  judul: 'Riwayat pembayaran',
+                  keterangan: 'Tagihan langganan dan statusnya',
+                  onTekan: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const RiwayatBayarScreen(),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
         const SizedBox(height: Jarak.md),
 
@@ -136,14 +170,11 @@ class AkunScreen extends StatelessWidget {
             _BarisMenu(
               ikon: Icons.info_outline,
               judul: 'Tentang aplikasi',
-              keterangan: 'Versi tampilan · belum tersambung server',
+              keterangan: 'Versi 1.0.0',
               onTekan: () => _menyusul(context, 'Tentang aplikasi'),
             ),
           ],
         ),
-        const SizedBox(height: Jarak.md),
-
-        const _PeragaanKeadaan(),
         const SizedBox(height: Jarak.md),
 
         // Keluar berdiri sendiri, bukan baris terakhir dari daftar panjang.
@@ -161,11 +192,16 @@ class AkunScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: Jarak.xs),
-        ListenableBuilder(
-          listenable: revisiData,
-          builder: (context, _) => Center(
+        Bingkai<({Profil profil, Toko toko})>(
+          ambil: () async {
+            final p = await Repositori.profil();
+            final t = await Repositori.toko();
+            return (profil: p, toko: t);
+          },
+          rangka: const SizedBox.shrink(),
+          isi: (context, data) => Center(
             child: Text(
-              '${tokoContoh.nama} · ${profilContoh.email}',
+              '${data.toko.nama} · ${data.profil.email}',
               style: context.teks.bodySmall?.copyWith(
                 color: context.warna.onSurfaceVariant,
               ),
@@ -223,52 +259,77 @@ class _KepalaProfil extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final a = context.aksen;
-    final profil = profilContoh;
-
-    return Row(
-      children: [
-        Container(
-          width: 58,
-          height: 58,
-          decoration: BoxDecoration(color: a.fokus, shape: BoxShape.circle),
-          alignment: Alignment.center,
-          child: Text(
-            inisial(profil.nama),
-            style: context.teks.titleLarge?.copyWith(color: a.atasFokus),
-          ),
-        ),
-        const SizedBox(width: Jarak.xs),
-        Expanded(
-          child: Column(
+    return Bingkai<({Profil profil, Toko toko})>(
+      ambil: () async {
+        final p = await Repositori.profil();
+        final t = await Repositori.toko();
+        return (profil: p, toko: t);
+      },
+      rangka: const Row(
+        children: [
+          Rangka(lebar: 58, tinggi: 58, radius: 29),
+          SizedBox(width: Jarak.xs),
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                tokoContoh.nama,
-                style: context.teks.headlineSmall,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '${profil.nama} · ${profil.peran}',
-                style: context.teks.bodyMedium?.copyWith(
-                  color: context.warna.onSurfaceVariant,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+              Rangka(lebar: 140, tinggi: 18),
+              SizedBox(height: 6),
+              Rangka(lebar: 100, tinggi: 14),
             ],
           ),
-        ),
-        IconButton(
-          onPressed: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute<void>(builder: (_) => const ProfilScreen())),
-          icon: const Icon(Icons.edit_outlined),
-          tooltip: 'Ubah profil',
-        ),
-      ],
+        ],
+      ),
+      isi: (context, data) {
+        final a = context.aksen;
+        final profil = data.profil;
+        final toko = data.toko;
+
+        return Row(
+          children: [
+            Container(
+              width: 58,
+              height: 58,
+              decoration: BoxDecoration(color: a.fokus, shape: BoxShape.circle),
+              alignment: Alignment.center,
+              child: Text(
+                inisial(profil.nama),
+                style: context.teks.titleLarge?.copyWith(color: a.atasFokus),
+              ),
+            ),
+            const SizedBox(width: Jarak.xs),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    toko.nama,
+                    style: context.teks.headlineSmall,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${profil.nama} · Pemilik Toko',
+                    style: context.teks.bodyMedium?.copyWith(
+                      color: context.warna.onSurfaceVariant,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute<void>(builder: (_) => const ProfilScreen())),
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Ubah profil',
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -435,107 +496,3 @@ class _BarisMenu extends StatelessWidget {
   }
 }
 
-/// Sakelar peragaan empat keadaan.
-///
-/// Ada supaya keadaan memuat, kosong, dan galat bisa **dilihat**, bukan cuma
-/// dipercaya ada. Keadaan yang tidak pernah dibuka adalah keadaan yang tidak
-/// pernah benar-benar dirancang — dan biasanya baru ketahuan belum dirancang
-/// pada hari jaringan mati.
-///
-/// Bagian ini hilang saat backend disambung.
-class _PeragaanKeadaan extends StatelessWidget {
-  const _PeragaanKeadaan();
-
-  @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<ModeUji>(
-      valueListenable: modeUji,
-      builder: (context, mode, _) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const JudulBagian('Peragaan keadaan'),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(Jarak.sm),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Paksa seluruh layar menampilkan satu keadaan tertentu. '
-                    'Hanya alat bantu tahap tampilan — hilang saat backend '
-                    'disambung.',
-                    style: context.teks.bodySmall?.copyWith(
-                      color: context.warna.onSurfaceVariant,
-                      height: 1.4,
-                    ),
-                  ),
-                  const SizedBox(height: Jarak.xs),
-                  Wrap(
-                    spacing: Jarak.xs2,
-                    runSpacing: Jarak.xs2,
-                    children: [
-                      for (final m in ModeUji.values)
-                        _PilKeadaan(
-                          label: switch (m) {
-                            ModeUji.normal => 'Normal',
-                            ModeUji.memuat => 'Memuat',
-                            ModeUji.kosong => 'Kosong',
-                            ModeUji.galat => 'Galat',
-                          },
-                          aktif: mode == m,
-                          onTekan: () => modeUji.value = m,
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PilKeadaan extends StatelessWidget {
-  const _PilKeadaan({
-    required this.label,
-    required this.aktif,
-    required this.onTekan,
-  });
-
-  final String label;
-  final bool aktif;
-  final VoidCallback onTekan;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      selected: aktif,
-      child: InkWell(
-        onTap: onTekan,
-        borderRadius: BorderRadius.circular(Lengkung.bulat),
-        child: Container(
-          height: 36,
-          padding: const EdgeInsets.symmetric(horizontal: Jarak.xs),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: aktif ? context.aksen.fokus : Colors.transparent,
-            borderRadius: BorderRadius.circular(Lengkung.bulat),
-            border: Border.all(
-              color: aktif ? context.aksen.fokus : context.warna.outline,
-            ),
-          ),
-          child: Text(
-            label,
-            style: context.teks.bodySmall?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: aktif ? context.aksen.atasFokus : context.warna.onSurface,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

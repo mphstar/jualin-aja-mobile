@@ -5,6 +5,7 @@ import '../data/repositori.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../util/format.dart';
+import '../util/simpan_berkas.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/bingkai.dart';
 import '../widgets/blok_foto.dart';
@@ -12,6 +13,7 @@ import '../widgets/chip_kategori.dart';
 import '../widgets/kartu.dart';
 import '../widgets/keadaan.dart';
 import '../widgets/rangka.dart';
+import 'dialog_impor_produk.dart';
 import 'form_produk_screen.dart';
 
 /// Master data produk, dikelompokkan per kategori (PRD §1 — "master data
@@ -79,20 +81,44 @@ class _ProdukScreenState extends State<ProdukScreen> {
         ],
       ),
       kosong: (d) => d.$2.isEmpty,
-      saatKosong: ListView(
-        padding: padding,
-        children: [
-          const KepalaHalaman(judul: 'Produk'),
-          Keadaan(
-            ikon: Icons.inventory_2_outlined,
-            judul: 'Belum ada produk',
-            keterangan:
-                'Tambahkan produk pertama Anda — nama, harga, dan satuan '
-                'sudah cukup untuk mulai berjualan.',
-            labelAksi: 'Tambah produk',
-            onAksi: () => ProdukScreen.bukaFormulir(context),
-          ),
-        ],
+      saatKosong: Builder(
+        builder: (context) {
+          final ringkas = MediaQuery.sizeOf(context).width < Ambang.ringkas;
+          return ListView(
+            padding: padding,
+            children: [
+              KepalaHalaman(
+                judul: 'Produk',
+                keterangan: 'Belum ada produk terdaftar.',
+                aksi: _BarisAksiProduk(kategori: const [], ringkas: ringkas),
+              ),
+              const SizedBox(height: Jarak.md),
+              Keadaan(
+                ikon: Icons.inventory_2_outlined,
+                judul: 'Belum Ada Produk',
+                keterangan:
+                    'Tambahkan produk pertama Anda secara manual atau impor daftar produk secara massal dari berkas Excel (.xlsx).',
+                aksiWidget: Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: Jarak.xs,
+                  runSpacing: Jarak.xs,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: () => ProdukScreen.bukaFormulir(context),
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Tambah produk'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => DialogImporProduk.tampilkan(context),
+                      icon: const Icon(Icons.upload_file, size: 18),
+                      label: const Text('Impor Excel (.xlsx)'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
       isi: (context, data) => _Isi(
         kategori: data.$1,
@@ -157,26 +183,10 @@ class _Isi extends StatelessWidget {
             child: KepalaHalaman(
               judul: 'Produk',
               keterangan: _disaring
-                  ? '${tampil.length} produk di ${terlihat.first.nama}.'
+                  ? '${tampil.length} produk di ${terlihat.isNotEmpty ? terlihat.first.nama : 'kategori'}.'
                   : '${produk.length} produk dalam '
                         '${kategori.length} kategori.',
-              aksi: ringkas
-                  ? IconButton.filled(
-                      onPressed: () => ProdukScreen.bukaFormulir(
-                        context,
-                        kategori: kategori,
-                      ),
-                      icon: const Icon(Icons.add),
-                      tooltip: 'Tambah produk',
-                    )
-                  : FilledButton.icon(
-                      onPressed: () => ProdukScreen.bukaFormulir(
-                        context,
-                        kategori: kategori,
-                      ),
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('Tambah produk'),
-                    ),
+              aksi: _BarisAksiProduk(kategori: kategori, ringkas: ringkas),
             ),
           ),
         ),
@@ -448,3 +458,70 @@ class _BarisProduk extends StatelessWidget {
     );
   }
 }
+
+class _BarisAksiProduk extends StatelessWidget {
+  const _BarisAksiProduk({
+    required this.kategori,
+    required this.ringkas,
+  });
+
+  final List<Kategori> kategori;
+  final bool ringkas;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton.outlined(
+          onPressed: () async {
+            try {
+              final hasil = await Repositori.eksporProduk();
+              await simpanBerkasKePerangkat(hasil.bytes, hasil.filename);
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Ekspor berhasil: ${hasil.filename}'),
+                ),
+              );
+            } catch (e) {
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Gagal mengekspor data produk: $e'),
+                ),
+              );
+            }
+          },
+          icon: const Icon(Icons.download, size: 20),
+          tooltip: 'Ekspor Excel (.xlsx)',
+        ),
+        const SizedBox(width: Jarak.xs2),
+        IconButton.outlined(
+          onPressed: () => DialogImporProduk.tampilkan(context),
+          icon: const Icon(Icons.upload_file, size: 20),
+          tooltip: 'Impor Excel (.xlsx)',
+        ),
+        const SizedBox(width: Jarak.xs2),
+        ringkas
+            ? IconButton.filled(
+                onPressed: () => ProdukScreen.bukaFormulir(
+                  context,
+                  kategori: kategori,
+                ),
+                icon: const Icon(Icons.add),
+                tooltip: 'Tambah produk',
+              )
+            : FilledButton.icon(
+                onPressed: () => ProdukScreen.bukaFormulir(
+                  context,
+                  kategori: kategori,
+                ),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Tambah produk'),
+              ),
+      ],
+    );
+  }
+}
+

@@ -1132,29 +1132,30 @@ class _KakiKeranjang extends StatelessWidget {
             Row(
               children: [
                 if (!tanpaKosongkan) ...[
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: onKosongkan,
-                      icon: const Icon(
-                        Icons.remove_shopping_cart_outlined,
-                        size: 18,
+                  IconButton.outlined(
+                    onPressed: onKosongkan,
+                    icon: const Icon(
+                      Icons.remove_shopping_cart_outlined,
+                      size: 20,
+                    ),
+                    tooltip: 'Kosongkan keranjang',
+                    style: IconButton.styleFrom(
+                      foregroundColor: context.aksen.bahaya,
+                      side: BorderSide(
+                        color: context.aksen.bahaya.withValues(alpha: 0.35),
                       ),
-                      label: const Text('Kosongkan'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: context.aksen.bahaya,
-                        side: BorderSide(
-                          color: context.aksen.bahaya.withValues(alpha: 0.35),
-                        ),
-                      ),
+                      minimumSize: const Size(48, 48),
                     ),
                   ),
-                  const SizedBox(width: Jarak.xs2),
+                  const SizedBox(width: Jarak.xs),
                 ],
                 Expanded(
-                  flex: 2,
-                  child: FilledButton(
-                    onPressed: onBayar,
-                    child: const Text('Bayar'),
+                  child: SizedBox(
+                    height: 48,
+                    child: FilledButton(
+                      onPressed: onBayar,
+                      child: const Text('Bayar'),
+                    ),
                   ),
                 ),
               ],

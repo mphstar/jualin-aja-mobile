@@ -7,6 +7,7 @@ library;
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -224,6 +225,78 @@ Future<void> delete(String path) async {
     if (respons.statusCode >= 300) {
       _proses(respons);
     }
+  } on SocketException {
+    throw const GagalMuat('Tidak bisa terhubung ke server.');
+  } on http.ClientException {
+    throw const GagalMuat('Tidak bisa terhubung ke server.');
+  }
+}
+
+/// GET request mengembalikan raw bytes (misal berkas Excel).
+Future<({Uint8List bytes, String? filename})> getBytes(
+  String path, [
+  Map<String, String>? query,
+]) async {
+  try {
+    final respons = await http
+        .get(_uri(path, query), headers: {
+          'Accept':
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/octet-stream',
+          if (_token != null) 'Authorization': 'Bearer $_token',
+        })
+        .timeout(_timeout);
+
+    if (respons.statusCode == 401) {
+      hapusToken();
+      throw const GagalMuat('Sesi berakhir. Silakan masuk kembali.');
+    }
+
+    if (respons.statusCode >= 300) {
+      _proses(respons);
+    }
+
+    String? filename;
+    final disposition = respons.headers['content-disposition'];
+    if (disposition != null && disposition.contains('filename=')) {
+      final match = RegExp(r'filename="?([^";]+)"?').firstMatch(disposition);
+      if (match != null) filename = match.group(1);
+    }
+
+    return (bytes: respons.bodyBytes, filename: filename);
+  } on SocketException {
+    throw const GagalMuat('Tidak bisa terhubung ke server.');
+  } on http.ClientException {
+    throw const GagalMuat('Tidak bisa terhubung ke server.');
+  }
+}
+
+/// POST multipart upload file.
+Future<Map<String, dynamic>> uploadFile(
+  String path,
+  List<int> bytes,
+  String filename, {
+  String fieldName = 'file',
+}) async {
+  try {
+    final uri = _uri(path);
+    final request = http.MultipartRequest('POST', uri);
+
+    if (_token != null) {
+      request.headers['Authorization'] = 'Bearer $_token';
+    }
+    request.headers['Accept'] = 'application/json';
+
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        fieldName,
+        bytes,
+        filename: filename,
+      ),
+    );
+
+    final streamedResponse = await request.send().timeout(_timeout);
+    final response = await http.Response.fromStream(streamedResponse);
+    return _proses(response);
   } on SocketException {
     throw const GagalMuat('Tidak bisa terhubung ke server.');
   } on http.ClientException {

@@ -565,6 +565,9 @@ class Tagihan {
     required this.batasBayar,
     required this.berlakuSampai,
     this.kodeBayar,
+    this.kodePerusahaan,
+    this.qrUrl,
+    this.tautanBayar,
   });
 
   final String id;
@@ -587,6 +590,15 @@ class Tagihan {
   /// Nomor Virtual Account. Null untuk saluran yang tidak memakainya.
   final String? kodeBayar;
 
+  /// Biller code Mandiri. Null untuk saluran lain.
+  final String? kodePerusahaan;
+
+  /// URL gambar QR Code (QRIS). Null kalau bukan QRIS atau server tiruan.
+  final String? qrUrl;
+
+  /// URL deeplink / tautan bayar (GoPay). Null kalau bukan GoPay.
+  final String? tautanBayar;
+
   Duration get sisaWaktu => batasBayar.difference(DateTime.now());
   bool get lewatBatas => sisaWaktu.isNegative;
 
@@ -607,6 +619,9 @@ class Tagihan {
     batasBayar: batasBayar,
     berlakuSampai: berlakuSampai,
     kodeBayar: kodeBayar,
+    kodePerusahaan: kodePerusahaan,
+    qrUrl: qrUrl,
+    tautanBayar: tautanBayar,
   );
 }
 
