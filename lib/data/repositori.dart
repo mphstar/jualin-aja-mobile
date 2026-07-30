@@ -316,6 +316,8 @@ abstract final class Repositori {
     required StatusTransaksi status,
     String? pelanggan,
     int? uangDiterima,
+    String? diskonTipe,
+    int? diskonNilai,
   }) async {
     final j = await api.post('/transaksi', {
       'item': [
@@ -339,6 +341,8 @@ abstract final class Repositori {
       },
       if (pelanggan != null && pelanggan.isNotEmpty) 'pelanggan': pelanggan,
       'uangDiterima': ?uangDiterima,
+      if (diskonTipe != null && diskonTipe.isNotEmpty) 'diskonTipe': diskonTipe,
+      if (diskonNilai != null && diskonNilai > 0) 'diskonNilai': diskonNilai,
     });
 
     revisiData.value++;

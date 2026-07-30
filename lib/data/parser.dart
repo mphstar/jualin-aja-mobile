@@ -124,6 +124,10 @@ Transaksi transaksiDariJson(Map<String, dynamic> j) => Transaksi(
   uangDiterima: j['uangDiterima'] as int?,
   sesiId: j['sesiId']?.toString(),
   namaKasir: j['namaKasir'] as String?,
+  subtotalRaw: _int(j['subtotal']),
+  diskonTipe: j['diskonTipe'] as String?,
+  diskonNilai: _int(j['diskonNilai']),
+  diskonNominal: _int(j['diskonNominal']),
 );
 
 // ---------------------------------------------------------------------------

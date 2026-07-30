@@ -159,6 +159,10 @@ class Transaksi {
     this.uangDiterima,
     this.sesiId,
     this.namaKasir,
+    this.subtotalRaw,
+    this.diskonTipe,
+    this.diskonNilai = 0,
+    this.diskonNominal = 0,
   });
 
   final String id;
@@ -179,10 +183,16 @@ class Transaksi {
   final String? sesiId;
   final String? namaKasir;
 
-  /// Diturunkan, tidak disimpan. Total yang disimpan terpisah dari barisnya
-  /// adalah dua sumber kebenaran, dan salah satunya pasti akan basi.
-  int get total => baris.fold(0, (n, b) => n + b.subtotal);
+  /// Subtotal dan Data Diskon
+  final int? subtotalRaw;
+  final String? diskonTipe; // 'PERSEN' atau 'NOMINAL'
+  final int diskonNilai;
+  final int diskonNominal;
+
+  int get subtotal => subtotalRaw ?? baris.fold(0, (n, b) => n + b.subtotal);
+  int get total => (subtotal - diskonNominal).clamp(0, 999999999999);
   int get jumlahItem => baris.fold(0, (n, b) => n + b.jumlah);
+  bool get adaDiskon => diskonNominal > 0;
 
   /// Kembalian, atau null kalau transaksi ini bukan tunai.
   int? get kembalian => uangDiterima == null ? null : uangDiterima! - total;
@@ -200,6 +210,10 @@ class Transaksi {
     int? uangDiterima,
     String? sesiId,
     String? namaKasir,
+    int? subtotalRaw,
+    String? diskonTipe,
+    int? diskonNilai,
+    int? diskonNominal,
   }) => Transaksi(
     id: id,
     nomorStruk: nomorStruk,
@@ -211,6 +225,10 @@ class Transaksi {
     uangDiterima: uangDiterima ?? this.uangDiterima,
     sesiId: sesiId ?? this.sesiId,
     namaKasir: namaKasir ?? this.namaKasir,
+    subtotalRaw: subtotalRaw ?? this.subtotalRaw,
+    diskonTipe: diskonTipe ?? this.diskonTipe,
+    diskonNilai: diskonNilai ?? this.diskonNilai,
+    diskonNominal: diskonNominal ?? this.diskonNominal,
   );
 }
 

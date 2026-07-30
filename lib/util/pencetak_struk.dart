@@ -145,6 +145,14 @@ abstract class PencetakStruk {
     _bluetooth.printCustom(pemisah, 0, 1);
 
     // Total & Pembayaran
+    if (transaksi.adaDiskon) {
+      _bluetooth.printCustom('Subtotal: ${rupiah(transaksi.subtotal)}', 0, 2);
+      final labelDiskon = transaksi.diskonTipe == 'PERSEN'
+          ? 'Diskon (${transaksi.diskonNilai}%): -${rupiah(transaksi.diskonNominal)}'
+          : 'Diskon: -${rupiah(transaksi.diskonNominal)}';
+      _bluetooth.printCustom(labelDiskon, 0, 2);
+    }
+
     _bluetooth.printCustom('TOTAL: ${rupiah(transaksi.total)}', 1, 2);
     if (transaksi.uangDiterima != null && !transaksi.piutang) {
       _bluetooth.printCustom(

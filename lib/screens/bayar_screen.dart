@@ -9,41 +9,31 @@ import '../util/pencetak_struk.dart';
 import '../widgets/baris_pesanan.dart';
 import '../widgets/isian_uang.dart';
 import '../widgets/kartu.dart';
+import '../widgets/lembar_diskon.dart';
 import '../widgets/tombol_pil.dart';
 
-/// Apa yang dibawa kembali ke kasir saat layar bayar ditutup.
-///
-/// Dua hal sekaligus, dan keduanya wajib: **apakah transaksinya jadi** dan
-/// **isi keranjang yang terakhir berlaku**. Yang kedua ada karena pesanan bisa
-/// disunting di layar bayar — kalau kasir cuma diberi tahu "batal", ia akan
-/// kembali menampilkan keranjang versi lama, dan pembeli yang barusan
-/// membatalkan satu kopi akan ditagih kopi itu lagi.
 class HasilKasir {
   const HasilKasir({required this.selesai, required this.item});
 
-  /// Transaksi tersimpan. Keranjang kasir harus dikosongkan.
   final bool selesai;
-
   final List<ItemKeranjang> item;
 
   static const tersimpan = HasilKasir(selesai: true, item: []);
 }
 
-/// Layar pembayaran satu transaksi.
-///
-/// Sebelumnya ini cuma lembar bawah berisi tiga pilihan metode: ditekan, dan
-/// transaksinya langsung dianggap selesai. Yang hilang justru bagian yang
-/// paling sering salah di kasir sungguhan — menghitung kembalian. Kasir yang
-/// harus menghitung di kepala sambil pembeli menunggu adalah kasir yang
-/// cepat atau lambat memberi kembalian keliru.
-///
-/// Karena itu ia jadi halaman, bukan lembar: uang diterima, kembalian, dan
-/// tombol simpan butuh ruang yang tidak berebut dengan papan ketik.
 class BayarScreen extends StatefulWidget {
-  const BayarScreen({super.key, required this.item, required this.nomorStruk});
+  const BayarScreen({
+    super.key,
+    required this.item,
+    required this.nomorStruk,
+    this.diskonTipe,
+    this.diskonNilai = 0,
+  });
 
   final List<ItemKeranjang> item;
   final String nomorStruk;
+  final String? diskonTipe;
+  final int diskonNilai;
 
   @override
   State<BayarScreen> createState() => _BayarScreenState();
@@ -55,26 +45,35 @@ class _BayarScreenState extends State<BayarScreen> {
   bool _menyimpan = false;
   String? _galat;
 
-  /// Salinan yang bisa disunting.
-  ///
-  /// Pesanan paling sering berubah justru di detik ini — pembeli melihat
-  /// totalnya, lalu membatalkan satu item atau menambah satu lagi. Memaksa
-  /// kasir menutup layar ini, membuka keranjang, mengubah, lalu menekan Bayar
-  /// sekali lagi adalah empat ketukan untuk satu perubahan yang terjadi hampir
-  /// setiap jam sibuk.
   late final List<ItemKeranjang> _item = List.of(widget.item);
 
-  int get _total => _item.fold(0, (n, i) => n + i.subtotal);
+  String? _diskonTipe;
+  int _diskonNilai = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _diskonTipe = widget.diskonTipe;
+    _diskonNilai = widget.diskonNilai;
+  }
+
+  int get _subtotal => _item.fold(0, (n, i) => n + i.subtotal);
+
+  int get _diskonNominal {
+    if (_diskonNilai <= 0) return 0;
+    if (_diskonTipe == 'PERSEN') {
+      final p = _diskonNilai.clamp(0, 100);
+      return (_subtotal * p / 100).round();
+    }
+    return _diskonNilai.clamp(0, _subtotal);
+  }
+
+  int get _total => (_subtotal - _diskonNominal).clamp(0, 999999999999);
   int get _jumlahItem => _item.fold(0, (n, i) => n + i.jumlah);
 
-  /// Nilai yang sedang diketik, tanpa titik pemisah.
   int get _diterima => bacaNominal(_uang.text);
-
   bool get _tunai => _metode == MetodeBayar.tunai;
   int get _kembalian => _diterima - _total;
-
-  /// Tunai baru boleh disimpan kalau uangnya cukup. Metode lain tidak menuntut
-  /// nominal — yang dikonfirmasi kasir di situ adalah dananya sudah masuk.
   bool get _bolehSimpan => !_tunai || _diterima >= _total;
 
   @override
@@ -83,11 +82,6 @@ class _BayarScreenState extends State<BayarScreen> {
     super.dispose();
   }
 
-  /// Ubah jumlah satu baris pesanan. Nol berarti barisnya dibuang.
-  ///
-  /// Keranjang yang jadi kosong menutup layar ini sendiri: tidak ada yang bisa
-  /// dibayar, dan halaman pembayaran bertotal Rp 0 hanya menyisakan tombol
-  /// yang tidak boleh ditekan.
   void _ubah(String produkId, int delta) {
     final i = _item.indexWhere((e) => e.produk.id == produkId);
     if (i < 0) return;
@@ -104,10 +98,24 @@ class _BayarScreenState extends State<BayarScreen> {
     if (_item.isEmpty) _tutup();
   }
 
-  /// Kembali ke kasir sambil membawa pesanan versi terakhir.
   void _tutup() => Navigator.of(
     context,
   ).pop(HasilKasir(selesai: false, item: List.of(_item)));
+
+  Future<void> _bukaDiskon() async {
+    final hasil = await LembarDiskon.tampilkan(
+      context,
+      subtotal: _subtotal,
+      diskonTipeAwal: _diskonTipe,
+      diskonNilaiAwal: _diskonNilai,
+    );
+    if (hasil != null) {
+      setState(() {
+        _diskonTipe = hasil.$1;
+        _diskonNilai = hasil.$2;
+      });
+    }
+  }
 
   Future<void> _simpan() async {
     if (!_bolehSimpan) return;
@@ -122,6 +130,8 @@ class _BayarScreenState extends State<BayarScreen> {
         metode: _metode,
         status: StatusTransaksi.selesai,
         uangDiterima: _tunai ? _diterima : null,
+        diskonTipe: _diskonTipe,
+        diskonNilai: _diskonNilai,
       );
       await Repositori.catatTransaksiKeSesi(transaksi);
       if (!mounted) return;
@@ -152,13 +162,11 @@ class _BayarScreenState extends State<BayarScreen> {
     try {
       final transaksi = await Repositori.simpanTransaksi(
         item: _item,
-        // Metode dicatat apa adanya sebagai tunai: piutang ini nantinya hampir
-        // selalu dilunasi tunai, dan kalau ternyata bukan, pelunasannya yang
-        // mengoreksi. Menambah metode "utang" akan mencemari laporan metode
-        // pembayaran dengan sesuatu yang bukan cara membayar.
         metode: MetodeBayar.tunai,
         status: StatusTransaksi.ditahan,
         pelanggan: pelanggan,
+        diskonTipe: _diskonTipe,
+        diskonNilai: _diskonNilai,
       );
       if (!mounted) return;
       _keHasil(transaksi);
@@ -248,10 +256,6 @@ class _BayarScreenState extends State<BayarScreen> {
                                 hargaSatuan: i.produk.hargaJual,
                                 jumlah: i.jumlah,
                                 aktif: !_menyimpan,
-                                // Produk berstok terlacak tidak boleh melewati
-                                // sisanya: menaikkannya di sini berarti menjual
-                                // barang yang tidak ada, dan stoknya sudah tidak
-                                // bisa dikoreksi setelah struknya tercetak.
                                 bolehTambah:
                                     !i.produk.lacakStok ||
                                     i.jumlah < i.produk.stok,
@@ -260,6 +264,90 @@ class _BayarScreenState extends State<BayarScreen> {
                               ),
                           ],
                         ),
+                        const SizedBox(height: Jarak.sm),
+
+                        JudulBagian(
+                          'Diskon',
+                          aksi: _diskonNominal > 0
+                              ? TextButton.icon(
+                                  onPressed: _bukaDiskon,
+                                  icon: const Icon(Icons.edit_outlined, size: 16),
+                                  label: const Text('Ubah'),
+                                )
+                              : null,
+                        ),
+                        if (_diskonNominal > 0)
+                          KartuDaftar(
+                            anak: [
+                              Padding(
+                                padding: const EdgeInsets.all(Jarak.xs),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: context.aksen.bahayaLembut,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(
+                                        Icons.discount_outlined,
+                                        size: 20,
+                                        color: context.aksen.bahaya,
+                                      ),
+                                    ),
+                                    const SizedBox(width: Jarak.xs),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            _diskonTipe == 'PERSEN'
+                                                ? 'Diskon $_diskonNilai%'
+                                                : 'Diskon Rp',
+                                            style: context.teks.titleSmall?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          Text(
+                                            'Subtotal ${rupiah(_subtotal)}',
+                                            style: context.teks.bodySmall?.copyWith(
+                                              color: context.warna.onSurfaceVariant,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Text(
+                                      '-${rupiah(_diskonNominal)}',
+                                      style: context.teks.titleMedium?.copyWith(
+                                        color: context.aksen.bahaya,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      onPressed: () {
+                                        setState(() {
+                                          _diskonTipe = null;
+                                          _diskonNilai = 0;
+                                        });
+                                      },
+                                      icon: const Icon(Icons.close, size: 18),
+                                      tooltip: 'Hapus diskon',
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          )
+                        else
+                          OutlinedButton.icon(
+                            onPressed: _bukaDiskon,
+                            icon: const Icon(Icons.discount_outlined, size: 18),
+                            label: const Text('Tambah Diskon (Persen / Nominal)'),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size.fromHeight(44),
+                            ),
+                          ),
                         const SizedBox(height: Jarak.sm),
 
                         const JudulBagian('Metode pembayaran'),
@@ -542,8 +630,36 @@ class HasilBayarScreen extends StatelessWidget {
                                 ),
                                 judul: transaksi.nomorStruk,
                                 keterangan: jam(transaksi.waktu),
-                                akhiran: rupiah(transaksi.total),
+                                akhiran: rupiah(
+                                  transaksi.adaDiskon
+                                      ? transaksi.subtotal
+                                      : transaksi.total,
+                                ),
                               ),
+                              if (transaksi.adaDiskon) ...[
+                                BarisDaftar(
+                                  awalan: Icon(
+                                    Icons.discount_outlined,
+                                    size: 20,
+                                    color: context.aksen.bahaya,
+                                  ),
+                                  judul: transaksi.diskonTipe == 'PERSEN'
+                                      ? 'Diskon ${transaksi.diskonNilai}%'
+                                      : 'Diskon Rp',
+                                  keterangan: 'Potongan harga',
+                                  akhiran: '-${rupiah(transaksi.diskonNominal)}',
+                                ),
+                                BarisDaftar(
+                                  awalan: Icon(
+                                    Icons.payments_outlined,
+                                    size: 20,
+                                    color: context.aksen.fokus,
+                                  ),
+                                  judul: 'Total Bayar',
+                                  keterangan: '${transaksi.jumlahItem} item',
+                                  akhiran: rupiah(transaksi.total),
+                                ),
+                              ],
                             ],
                           ),
                         ],

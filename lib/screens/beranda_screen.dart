@@ -101,6 +101,8 @@ class _Isi extends StatelessWidget {
       padding: padding,
       children: [
         const _Sapaan(),
+        const SizedBox(height: Jarak.xs),
+        _StatusKasir(onBukaKasir: onBukaKasir),
         const SizedBox(height: Jarak.sm),
         if (duaKolom)
           Row(
@@ -194,6 +196,96 @@ class _Sapaan extends StatelessWidget {
           tooltip: 'Notifikasi',
         ),
       ],
+    );
+  }
+}
+
+/// Penanda status shift kasir — buka atau tutup.
+class _StatusKasir extends StatelessWidget {
+  const _StatusKasir({required this.onBukaKasir});
+
+  final VoidCallback onBukaKasir;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<SesiKasir?>(
+      valueListenable: Repositori.sesiKasirAktif,
+      builder: (context, sesi, _) {
+        final buka = sesi != null;
+        final a = context.aksen;
+
+        return Material(
+          color: buka ? a.suksesLembut : context.warna.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(Lengkung.kontrol),
+          child: InkWell(
+            onTap: buka
+                ? () => LembarTutupKasir.tampilkan(context, sesi: sesi)
+                : () async {
+                    final profil = await Repositori.profil();
+                    if (!context.mounted) return;
+                    await LembarBukaKasir.tampilkan(
+                      context,
+                      profilDefault: profil,
+                    );
+                  },
+            borderRadius: BorderRadius.circular(Lengkung.kontrol),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: Jarak.xs,
+                vertical: Jarak.xs2,
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: buka ? a.sukses : context.warna.onSurfaceVariant,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: Jarak.xs2),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          buka
+                              ? 'Kasir Buka · ${sesi.namaKasir}'
+                              : 'Kasir Tutup',
+                          style: context.teks.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: buka
+                                ? a.sukses
+                                : context.warna.onSurfaceVariant,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          buka
+                              ? 'Buka sejak ${jam(sesi.waktuBuka)}'
+                              : 'Ketuk untuk buka shift kasir',
+                          style: context.teks.bodySmall?.copyWith(
+                            color: buka
+                                ? a.sukses.withValues(alpha: 0.7)
+                                : context.warna.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    buka ? Icons.lock_open_outlined : Icons.lock_outlined,
+                    size: 20,
+                    color: buka ? a.sukses : context.warna.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

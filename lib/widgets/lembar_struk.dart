@@ -138,7 +138,19 @@ class LembarStruk extends StatelessWidget {
                   ),
               ],
             ),
-            const SizedBox(height: Jarak.xs),
+            if (transaksi.adaDiskon) ...[
+              _BarisRingan(
+                label: 'Subtotal',
+                nilai: rupiah(transaksi.subtotal),
+              ),
+              _BarisRingan(
+                label: transaksi.diskonTipe == 'PERSEN'
+                    ? 'Diskon (${transaksi.diskonNilai}%)'
+                    : 'Diskon Rp',
+                nilai: '-${rupiah(transaksi.diskonNominal)}',
+              ),
+              const SizedBox(height: Jarak.xs3),
+            ],
             Row(
               children: [
                 Expanded(child: Text('Total', style: context.teks.titleMedium)),
