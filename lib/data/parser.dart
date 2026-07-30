@@ -122,6 +122,8 @@ Transaksi transaksiDariJson(Map<String, dynamic> j) => Transaksi(
   status: _statusTransaksi(j['status'] as String?),
   pelanggan: j['pelanggan'] as String?,
   uangDiterima: j['uangDiterima'] as int?,
+  sesiId: j['sesiId']?.toString(),
+  namaKasir: j['namaKasir'] as String?,
 );
 
 // ---------------------------------------------------------------------------
@@ -308,6 +310,7 @@ Laporan laporanDariJson(Map<String, dynamic> j) => Laporan(
               tanggal: _tanggal(m['tanggal']),
               omzet: _int(m['omzet']),
               transaksi: _int(m['transaksi']),
+              label: m['label'] as String?,
             );
           })
           .toList() ??

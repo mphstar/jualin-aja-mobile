@@ -8,11 +8,15 @@
 /// datang dari jaringan sungguhan, bukan dari sakelar peragaan.
 library;
 
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' show DateTimeRange;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart' as api;
 import 'model.dart';
 import 'parser.dart';
+import 'sesi_kasir.dart';
 
 // ---------------------------------------------------------------------------
 // Bentuk pemuatan (tidak berubah dari versi contoh)
@@ -505,6 +509,8 @@ abstract final class Repositori {
     String cari = '',
     StatusTransaksi? status,
     MetodeBayar? metode,
+    String? sesiId,
+    String? namaKasir,
   }) async {
     final query = <String, String>{};
     if (cari.trim().isNotEmpty) query['cari'] = cari.trim();
@@ -522,6 +528,8 @@ abstract final class Repositori {
         MetodeBayar.transfer => 'TRANSFER',
       };
     }
+    if (sesiId != null && sesiId.isNotEmpty) query['sesi_id'] = sesiId;
+    if (namaKasir != null && namaKasir.isNotEmpty) query['nama_kasir'] = namaKasir;
 
     final daftar = await api.getDaftar('/transaksi', query);
     return daftar
@@ -533,10 +541,187 @@ abstract final class Repositori {
   // Laporan
   // -------------------------------------------------------------------------
 
-  static Future<Laporan> laporan(Periode periode) async {
-    final j = await api.get('/laporan', {
-      'periode': periodeKeString(periode),
-    });
+  static Future<Laporan> laporan({
+    Periode? periode,
+    String? modeFilter,
+    DateTimeRange? customRange,
+  }) async {
+    final query = <String, String>{};
+    if (customRange != null) {
+      query['dari'] = customRange.start.toIso8601String();
+      query['sampai'] = customRange.end.toIso8601String();
+    } else if (modeFilter != null && modeFilter.isNotEmpty) {
+      query['periode'] = modeFilter;
+    } else {
+      query['periode'] = periodeKeString(periode ?? Periode.tujuhHari);
+    }
+
+    final j = await api.get('/laporan', query);
     return laporanDariJson(j);
+  }
+
+  // -------------------------------------------------------------------------
+  // Sesi Kasir / Shift Management
+  // -------------------------------------------------------------------------
+
+  static final sesiKasirAktif = ValueNotifier<SesiKasir?>(null);
+
+  static Future<SesiKasir?> muatSesiKasirAktif() async {
+    try {
+      final json = await api.get('/sesi-kasir/aktif');
+      if (json['data'] != null) {
+        final sesi = SesiKasir.fromJson(json['data'] as Map<String, dynamic>);
+        sesiKasirAktif.value = sesi;
+        final sp = await SharedPreferences.getInstance();
+        await sp.setString('sesi_kasir_aktif', jsonEncode(sesi.toJson()));
+        return sesi;
+      }
+    } catch (_) {}
+
+    final sp = await SharedPreferences.getInstance();
+    final jsonStr = sp.getString('sesi_kasir_aktif');
+    if (jsonStr != null && jsonStr.isNotEmpty) {
+      try {
+        final map = jsonDecode(jsonStr) as Map<String, dynamic>;
+        final sesi = SesiKasir.fromJson(map);
+        sesiKasirAktif.value = sesi;
+        return sesi;
+      } catch (_) {}
+    }
+    sesiKasirAktif.value = null;
+    return null;
+  }
+
+  static Future<SesiKasir> bukaKasir({
+    required String namaKasir,
+    int kasAwalTunai = 0,
+    int kasAwalQris = 0,
+    int kasAwalTransfer = 0,
+  }) async {
+    SesiKasir? sesi;
+    try {
+      final json = await api.post('/sesi-kasir/buka', {
+        'namaKasir': namaKasir,
+        'kasAwalTunai': kasAwalTunai,
+        'kasAwalQris': kasAwalQris,
+        'kasAwalTransfer': kasAwalTransfer,
+      });
+      if (json['data'] != null) {
+        sesi = SesiKasir.fromJson(json['data'] as Map<String, dynamic>);
+      }
+    } catch (_) {}
+
+    sesi ??= SesiKasir(
+      id: 'SHIFT-${DateTime.now().millisecondsSinceEpoch}',
+      namaKasir: namaKasir,
+      waktuBuka: DateTime.now(),
+      kasAwalTunai: kasAwalTunai,
+      kasAwalQris: kasAwalQris,
+      kasAwalTransfer: kasAwalTransfer,
+    );
+
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString('sesi_kasir_aktif', jsonEncode(sesi.toJson()));
+    sesiKasirAktif.value = sesi;
+    revisiData.value++;
+    return sesi;
+  }
+
+  static Future<void> catatTransaksiKeSesi(Transaksi transaksi) async {
+    final sesi = sesiKasirAktif.value ?? await muatSesiKasirAktif();
+    if (sesi == null || !sesi.isOpen) return;
+
+    try {
+      await api.post('/sesi-kasir/catat-transaksi', {
+        'metode': transaksi.metode.name,
+        'total': transaksi.total,
+      });
+    } catch (_) {}
+
+    final tunai = transaksi.metode == MetodeBayar.tunai ? transaksi.total : 0;
+    final qris = transaksi.metode == MetodeBayar.qris ? transaksi.total : 0;
+    final transfer =
+        transaksi.metode == MetodeBayar.transfer ? transaksi.total : 0;
+
+    final baru = sesi.copyWith(
+      totalTunai: sesi.totalTunai + tunai,
+      totalQris: sesi.totalQris + qris,
+      totalTransfer: sesi.totalTransfer + transfer,
+      jumlahTransaksi: sesi.jumlahTransaksi + 1,
+    );
+
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString('sesi_kasir_aktif', jsonEncode(baru.toJson()));
+    sesiKasirAktif.value = baru;
+    revisiData.value++;
+  }
+
+  static Future<SesiKasir> tutupKasir({
+    required int kasFisikTunai,
+    required int kasFisikQris,
+    required int kasFisikTransfer,
+    String? catatan,
+  }) async {
+    SesiKasir? ditutup;
+    try {
+      final json = await api.post('/sesi-kasir/tutup', {
+        'kasFisikTunai': kasFisikTunai,
+        'kasFisikQris': kasFisikQris,
+        'kasFisikTransfer': kasFisikTransfer,
+        'catatan': catatan,
+      });
+      if (json['data'] != null) {
+        ditutup = SesiKasir.fromJson(json['data'] as Map<String, dynamic>);
+      }
+    } catch (_) {}
+
+    final sesi = sesiKasirAktif.value ?? await muatSesiKasirAktif();
+    final sesiValid = sesi ??
+        SesiKasir(
+          id: 'SHIFT-AUTO',
+          namaKasir: 'Kasir',
+          waktuBuka: DateTime.now(),
+        );
+
+    ditutup ??= sesiValid.copyWith(
+      waktuTutup: DateTime.now(),
+      kasFisikTunai: kasFisikTunai,
+      kasFisikQris: kasFisikQris,
+      kasFisikTransfer: kasFisikTransfer,
+      catatan: catatan,
+    );
+
+    final sp = await SharedPreferences.getInstance();
+    await sp.remove('sesi_kasir_aktif');
+    sesiKasirAktif.value = null;
+
+    final riwayatRaw = sp.getStringList('riwayat_sesi_kasir') ?? [];
+    riwayatRaw.add(jsonEncode(ditutup.toJson()));
+    await sp.setStringList('riwayat_sesi_kasir', riwayatRaw);
+
+    revisiData.value++;
+    return ditutup;
+  }
+
+  static Future<List<SesiKasir>> riwayatSesiKasir() async {
+    try {
+      final daftar = await api.getDaftar('/sesi-kasir/riwayat');
+      if (daftar.isNotEmpty) {
+        return daftar
+            .map((e) => SesiKasir.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (_) {}
+
+    final sp = await SharedPreferences.getInstance();
+    final riwayatRaw = sp.getStringList('riwayat_sesi_kasir') ?? [];
+    final hasil = <SesiKasir>[];
+    for (final raw in riwayatRaw.reversed) {
+      try {
+        final map = jsonDecode(raw) as Map<String, dynamic>;
+        hasil.add(SesiKasir.fromJson(map));
+      } catch (_) {}
+    }
+    return hasil;
   }
 }

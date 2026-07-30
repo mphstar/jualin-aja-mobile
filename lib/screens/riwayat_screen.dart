@@ -15,14 +15,6 @@ import '../widgets/rangka.dart';
 import 'piutang_screen.dart';
 
 /// Riwayat transaksi — tab kedua di dalam Laporan.
-///
-/// Bukan tujuan navigasi tersendiri, karena ia dan Ringkasan adalah **data
-/// yang sama pada dua tingkat perbesaran**: satu menjawab "bagaimana minggu
-/// ini", satu menjawab "mana struk yang tadi". Memisahkannya jadi dua tab nav
-/// memaksa pengguna memilih lebih dulu pertanyaan mana yang sedang ia punya.
-///
-/// Penyaringan dikerjakan di [Repositori], bukan di sini — supaya saat pindah
-/// ke sisi server nanti, layarnya tidak ikut diubah.
 class RiwayatScreen extends StatefulWidget {
   const RiwayatScreen({super.key, required this.padding});
 
@@ -95,9 +87,6 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
         ),
         const SizedBox(height: Jarak.sm),
         Bingkai<List<Transaksi>>(
-          // Kunci ikut nilai saringan, jadi setiap perubahan saringan memicu
-          // pengambilan ulang lengkap dengan rangka pemuatannya — bukan diam
-          // beberapa ratus milidetik lalu isinya berganti tiba-tiba.
           key: ValueKey('$_cari|$_status'),
           ambil: () => Repositori.riwayat(cari: _cari, status: _status),
           rangka: const RangkaDaftar(baris: 6),
@@ -295,15 +284,17 @@ class _BarisTransaksi extends StatelessWidget {
       StatusTransaksi.selesai => (Icons.check, NadaIkon.sukses),
     };
 
+    final kasirText = (transaksi.namaKasir != null && transaksi.namaKasir!.isNotEmpty)
+        ? ' · Kasir: ${transaksi.namaKasir}'
+        : '';
+
     return BarisDaftar(
       awalan: IkonKotak(ikon, nada: nada, ukuran: 36),
       judul: transaksi.nomorStruk,
       keterangan: transaksi.piutang
-          // Untuk piutang, metode pembayaran belum berarti apa-apa — yang
-          // dicari mata di baris ini adalah siapa yang berutang.
-          ? '${jam(transaksi.waktu)} · ${transaksi.pelanggan ?? 'Tanpa nama'}'
+          ? '${jam(transaksi.waktu)} · ${transaksi.pelanggan ?? 'Tanpa nama'}$kasirText'
           : '${jam(transaksi.waktu)} · ${transaksi.metode.label} · '
-                '${transaksi.jumlahItem} item',
+                '${transaksi.jumlahItem} item$kasirText',
       akhiran: rupiah(transaksi.total),
       bawahAkhiran: batal || transaksi.piutang
           ? Lencana.transaksi(transaksi.status)

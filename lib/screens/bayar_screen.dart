@@ -5,6 +5,7 @@ import '../data/repositori.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../util/format.dart';
+import '../util/pencetak_struk.dart';
 import '../widgets/baris_pesanan.dart';
 import '../widgets/isian_uang.dart';
 import '../widgets/kartu.dart';
@@ -122,6 +123,7 @@ class _BayarScreenState extends State<BayarScreen> {
         status: StatusTransaksi.selesai,
         uangDiterima: _tunai ? _diterima : null,
       );
+      await Repositori.catatTransaksiKeSesi(transaksi);
       if (!mounted) return;
       _keHasil(transaksi);
     } on GagalMuat catch (e) {
@@ -567,19 +569,24 @@ class HasilBayarScreen extends StatelessWidget {
                           onTekan: () => Navigator.of(context).pop(),
                         ),
                         const SizedBox(height: Jarak.xs2),
-                        TombolPilGaris(
-                          ikon: Icons.print_outlined,
-                          label: 'Cetak struk',
-                          onTekan: () => ScaffoldMessenger.of(context)
-                            ..hideCurrentSnackBar()
-                            ..showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Printer belum tersambung. '
-                                  'Atur di Akun · Struk & printer.',
-                                ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TombolPilGaris(
+                                ikon: Icons.print_outlined,
+                                label: 'Cetak struk',
+                                onTekan: () => _cetakStruk(context),
                               ),
                             ),
+                            const SizedBox(width: Jarak.xs2),
+                            Expanded(
+                              child: TombolPilGaris(
+                                ikon: Icons.share_outlined,
+                                label: 'Bagikan',
+                                onTekan: () => _bagikanStruk(context),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -591,5 +598,43 @@ class HasilBayarScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _cetakStruk(BuildContext context) async {
+    try {
+      final toko = await Repositori.toko();
+      final pengaturan = await Repositori.pengaturanStruk();
+      if (!context.mounted) return;
+      await PencetakStruk.cetakOtomatisBluetooth(
+        context,
+        toko: toko,
+        pengaturan: pengaturan,
+        transaksi: transaksi,
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal mencetak struk: $e')),
+      );
+    }
+  }
+
+  Future<void> _bagikanStruk(BuildContext context) async {
+    try {
+      final toko = await Repositori.toko();
+      final pengaturan = await Repositori.pengaturanStruk();
+      if (!context.mounted) return;
+      await PencetakStruk.bagikanStruk(
+        context,
+        toko: toko,
+        pengaturan: pengaturan,
+        transaksi: transaksi,
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal membagikan struk: $e')),
+      );
+    }
   }
 }

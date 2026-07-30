@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/contoh.dart';
 import '../data/model.dart';
 import '../data/repositori.dart';
+import '../data/sesi_kasir.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../util/format.dart';
@@ -12,7 +13,10 @@ import '../widgets/bingkai.dart';
 import '../widgets/ikon_kotak.dart';
 import '../widgets/kartu.dart';
 import '../widgets/keadaan.dart';
+import '../widgets/lembar_buka_kasir.dart';
+import '../widgets/lembar_riwayat_shift.dart';
 import '../widgets/lembar_struk.dart';
+import '../widgets/lembar_tutup_kasir.dart';
 import '../widgets/lencana.dart';
 import '../widgets/rangka.dart';
 import 'piutang_screen.dart';
@@ -293,6 +297,7 @@ class _PanelHariIni extends StatelessWidget {
               ],
             ),
           const SizedBox(height: Jarak.md),
+          const SizedBox(height: Jarak.md),
           SizedBox(
             height: 52,
             child: FilledButton.icon(
@@ -300,8 +305,6 @@ class _PanelHariIni extends StatelessWidget {
               icon: const Icon(Icons.point_of_sale, size: 20),
               label: const Text('Buka kasir'),
               style: FilledButton.styleFrom(
-                // Dibalik terhadap panelnya: isian terang di atas tinta.
-                // Tombol tinta di atas panel tinta akan lenyap.
                 backgroundColor: a.atasFokus,
                 foregroundColor: a.fokus,
                 textStyle: const TextStyle(
@@ -476,47 +479,66 @@ class _AksiCepat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final aksi = <(IconData, String, VoidCallback)>[
-      (
-        Icons.add_box_outlined,
-        'Tambah produk',
-        () => ProdukScreen.bukaFormulir(context),
-      ),
-      (Icons.inventory_2_outlined, 'Cek stok', () => onKeTab?.call(1)),
-      // Cetaknya sendiri memang belum ada, tapi struk yang mau dicetak ulang
-      // dicari di Riwayat — mengantar ke sana lebih berguna daripada pesan
-      // "menyusul" yang membuat orang berhenti di tempat.
-      (Icons.print_outlined, 'Cetak ulang struk', () => onKeTab?.call(2)),
-      (
-        Icons.lock_clock_outlined,
-        'Tutup kasir',
-        () => _menyusul(context, 'Tutup kasir'),
-      ),
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const JudulBagian('Aksi cepat'),
-        GridView.builder(
-          padding: EdgeInsets.zero,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-            maxCrossAxisExtent: 220,
-            mainAxisSpacing: Jarak.xs2,
-            crossAxisSpacing: Jarak.xs2,
-            // Tinggi tetap. `childAspectRatio` berubah ikut lebar, jadi tinggi
-            // yang ditebak dari rasio pasti meluber di salah satu lebar.
-            mainAxisExtent: 76,
+    return ValueListenableBuilder<SesiKasir?>(
+      valueListenable: Repositori.sesiKasirAktif,
+      builder: (context, sesi, _) {
+        final aksi = <(IconData, String, VoidCallback)>[
+          if (sesi == null)
+            (
+              Icons.storefront_outlined,
+              'Buka kasir',
+              () async {
+                final profil = await Repositori.profil();
+                if (!context.mounted) return;
+                await LembarBukaKasir.tampilkan(
+                  context,
+                  profilDefault: profil,
+                );
+              },
+            )
+          else
+            (
+              Icons.no_encryption_gmailerrorred_outlined,
+              'Tutup kasir',
+              () => LembarTutupKasir.tampilkan(context, sesi: sesi),
+            ),
+          (
+            Icons.history_toggle_off,
+            'Riwayat shift',
+            () => LembarRiwayatShift.tampilkan(context),
           ),
-          itemCount: aksi.length,
-          itemBuilder: (context, i) {
-            final (ikon, label, onTekan) = aksi[i];
-            return _PetakAksi(ikon: ikon, label: label, onTekan: onTekan);
-          },
-        ),
-      ],
+          (
+            Icons.add_box_outlined,
+            'Tambah produk',
+            () => ProdukScreen.bukaFormulir(context),
+          ),
+          (Icons.inventory_2_outlined, 'Cek stok', () => onKeTab?.call(1)),
+          (Icons.print_outlined, 'Cetak ulang struk', () => onKeTab?.call(2)),
+        ];
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const JudulBagian('Aksi cepat'),
+            GridView.builder(
+              padding: EdgeInsets.zero,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 220,
+                mainAxisSpacing: Jarak.xs2,
+                crossAxisSpacing: Jarak.xs2,
+                mainAxisExtent: 76,
+              ),
+              itemCount: aksi.length,
+              itemBuilder: (context, i) {
+                final (ikon, label, onTekan) = aksi[i];
+                return _PetakAksi(ikon: ikon, label: label, onTekan: onTekan);
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 }

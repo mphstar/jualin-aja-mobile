@@ -157,6 +157,8 @@ class Transaksi {
     required this.status,
     this.pelanggan,
     this.uangDiterima,
+    this.sesiId,
+    this.namaKasir,
   });
 
   final String id;
@@ -171,11 +173,11 @@ class Transaksi {
   final String? pelanggan;
 
   /// Uang tunai yang diserahkan pembeli. Null untuk metode non-tunai.
-  ///
-  /// Disimpan, bukan dihitung, karena ia FAKTA transaksi: kembaliannya
-  /// diturunkan dari sini, dan kalau harga produk berubah besok, struk kemarin
-  /// harus tetap menunjukkan kembalian yang benar-benar diberikan.
   final int? uangDiterima;
+
+  /// ID Sesi Shift Kasir dan Nama Kasir yang melayani transaksi.
+  final String? sesiId;
+  final String? namaKasir;
 
   /// Diturunkan, tidak disimpan. Total yang disimpan terpisah dari barisnya
   /// adalah dua sumber kebenaran, dan salah satunya pasti akan basi.
@@ -196,6 +198,8 @@ class Transaksi {
     MetodeBayar? metode,
     StatusTransaksi? status,
     int? uangDiterima,
+    String? sesiId,
+    String? namaKasir,
   }) => Transaksi(
     id: id,
     nomorStruk: nomorStruk,
@@ -205,6 +209,8 @@ class Transaksi {
     status: status ?? this.status,
     pelanggan: pelanggan,
     uangDiterima: uangDiterima ?? this.uangDiterima,
+    sesiId: sesiId ?? this.sesiId,
+    namaKasir: namaKasir ?? this.namaKasir,
   );
 }
 
@@ -650,11 +656,13 @@ class TitikHarian {
     required this.tanggal,
     required this.omzet,
     required this.transaksi,
+    this.label,
   });
 
   final DateTime tanggal;
   final int omzet;
   final int transaksi;
+  final String? label;
 }
 
 class ProdukTerlaris {

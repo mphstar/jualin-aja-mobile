@@ -91,22 +91,229 @@ class _Ringkasan extends StatefulWidget {
 }
 
 class _RingkasanState extends State<_Ringkasan> {
-  Periode _periode = Periode.tujuhHari;
+  String _modeFilter = 'TUJUH_HARI';
+  DateTime? _tanggalRef;
+  DateTimeRange? _customRange;
+
+  Future<void> _pilihTanggalHarian() async {
+    final tgl = await showDatePicker(
+      context: context,
+      initialDate: _tanggalRef ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+      confirmText: 'Pilih Hari',
+    );
+    if (tgl != null) {
+      final start = DateTime(tgl.year, tgl.month, tgl.day, 0, 0, 0);
+      final end = DateTime(tgl.year, tgl.month, tgl.day, 23, 59, 59);
+      setState(() {
+        _tanggalRef = tgl;
+        _customRange = DateTimeRange(start: start, end: end);
+        _modeFilter = 'HARI_INI';
+      });
+    }
+  }
+
+  Future<void> _pilihMingguan() async {
+    final tgl = await showDatePicker(
+      context: context,
+      initialDate: _tanggalRef ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+      confirmText: 'Pilih Minggu',
+    );
+    if (tgl != null) {
+      final end = DateTime(tgl.year, tgl.month, tgl.day, 23, 59, 59);
+      final start = DateTime(tgl.year, tgl.month, tgl.day).subtract(const Duration(days: 6));
+      setState(() {
+        _tanggalRef = tgl;
+        _customRange = DateTimeRange(start: start, end: end);
+        _modeFilter = 'TUJUH_HARI';
+      });
+    }
+  }
+
+  Future<void> _pilihBulanan() async {
+    final tgl = await showDatePicker(
+      context: context,
+      initialDate: _tanggalRef ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+      initialDatePickerMode: DatePickerMode.year,
+      confirmText: 'Pilih Bulan',
+    );
+    if (tgl != null) {
+      final start = DateTime(tgl.year, tgl.month, 1);
+      final end = DateTime(tgl.year, tgl.month + 1, 0, 23, 59, 59);
+      setState(() {
+        _tanggalRef = tgl;
+        _customRange = DateTimeRange(start: start, end: end);
+        _modeFilter = 'TIGA_PULUH_HARI';
+      });
+    }
+  }
+
+  Future<void> _pilihTahunan() async {
+    final tahunKini = DateTime.now().year;
+    final terpilih = await showDialog<int>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Pilih Tahun Laporan'),
+          content: SizedBox(
+            width: 250,
+            height: 250,
+            child: ListView.builder(
+              itemCount: 10,
+              itemBuilder: (context, index) {
+                final thn = tahunKini - index;
+                return ListTile(
+                  title: Text('Tahun $thn', textAlign: TextAlign.center),
+                  onTap: () => Navigator.pop(context, thn),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+    if (terpilih != null) {
+      final start = DateTime(terpilih, 1, 1);
+      final end = DateTime(terpilih, 12, 31, 23, 59, 59);
+      setState(() {
+        _tanggalRef = start;
+        _customRange = DateTimeRange(start: start, end: end);
+        _modeFilter = 'TAHUNAN';
+      });
+    }
+  }
+
+  Future<void> _pilihCustomRange() async {
+    final awal = _customRange ??
+        DateTimeRange(
+          start: DateTime.now().subtract(const Duration(days: 7)),
+          end: DateTime.now(),
+        );
+    final hasil = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+      initialDateRange: awal,
+      confirmText: 'Pilih',
+    );
+    if (hasil != null) {
+      setState(() {
+        _customRange = hasil;
+        _modeFilter = 'CUSTOM';
+      });
+    }
+  }
+
+  void _onPilihMode(String mode) {
+    if (mode == _modeFilter && _customRange != null) {
+      _bukaPickerMode(mode);
+      return;
+    }
+
+    switch (mode) {
+      case 'HARI_INI':
+        setState(() {
+          _modeFilter = 'HARI_INI';
+          _tanggalRef = DateTime.now();
+          _customRange = null;
+        });
+        break;
+      case 'TUJUH_HARI':
+        setState(() {
+          _modeFilter = 'TUJUH_HARI';
+          _customRange = null;
+        });
+        break;
+      case 'TIGA_PULUH_HARI':
+        setState(() {
+          _modeFilter = 'TIGA_PULUH_HARI';
+          _customRange = null;
+        });
+        break;
+      case 'TAHUNAN':
+        setState(() {
+          _modeFilter = 'TAHUNAN';
+          _customRange = null;
+        });
+        break;
+      case 'CUSTOM':
+        _pilihCustomRange();
+        break;
+    }
+  }
+
+  void _bukaPickerMode(String mode) {
+    switch (mode) {
+      case 'HARI_INI':
+        _pilihTanggalHarian();
+        break;
+      case 'TUJUH_HARI':
+        _pilihMingguan();
+        break;
+      case 'TIGA_PULUH_HARI':
+        _pilihBulanan();
+        break;
+      case 'TAHUNAN':
+        _pilihTahunan();
+        break;
+      case 'CUSTOM':
+        _pilihCustomRange();
+        break;
+    }
+  }
+
+  String get _labelRincianPeriode {
+    if (_customRange != null) {
+      if (_modeFilter == 'HARI_INI') {
+        return 'Hari: ${tanggal(_customRange!.start)}';
+      }
+      if (_modeFilter == 'TUJUH_HARI') {
+        return 'Minggu: ${tanggal(_customRange!.start)} - ${tanggal(_customRange!.end)}';
+      }
+      if (_modeFilter == 'TIGA_PULUH_HARI') {
+        return 'Bulan: ${tanggal(_customRange!.start)} - ${tanggal(_customRange!.end)}';
+      }
+      if (_modeFilter == 'TAHUNAN') {
+        return 'Tahun: ${_customRange!.start.year}';
+      }
+      return 'Rentang: ${tanggal(_customRange!.start)} - ${tanggal(_customRange!.end)}';
+    }
+    return switch (_modeFilter) {
+      'HARI_INI' => 'Hari Ini (${tanggal(DateTime.now())})',
+      'TUJUH_HARI' => '7 Hari Terakhir',
+      'TIGA_PULUH_HARI' => '30 Hari Terakhir',
+      'TAHUNAN' => '1 Tahun Terakhir (${DateTime.now().year})',
+      _ => 'Rentang Kustom',
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
     final p = widget.padding;
+    final kunci =
+        '$_modeFilter|${_customRange?.start.toIso8601String()}|${_customRange?.end.toIso8601String()}';
+
     return ListView(
       padding: EdgeInsets.fromLTRB(p.left, Jarak.sm, p.right, p.bottom),
       children: [
-        _PilihPeriode(
-          nilai: _periode,
-          onPilih: (v) => setState(() => _periode = v),
+        _PilihPeriodeLengkap(
+          modeFilter: _modeFilter,
+          labelPeriode: _labelRincianPeriode,
+          onPilihMode: _onPilihMode,
+          onKlikRincian: () => _bukaPickerMode(_modeFilter),
         ),
         const SizedBox(height: Jarak.sm),
         Bingkai<Laporan>(
-          key: ValueKey(_periode),
-          ambil: () => Repositori.laporan(_periode),
+          key: ValueKey(kunci),
+          ambil: () => Repositori.laporan(
+            modeFilter: _modeFilter,
+            customRange: _customRange,
+          ),
           rangka: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: const [
@@ -118,11 +325,11 @@ class _RingkasanState extends State<_Ringkasan> {
             ],
           ),
           kosong: (l) => l.kosong,
-          saatKosong: Keadaan(
+          saatKosong: const Keadaan(
             ikon: Icons.bar_chart_outlined,
             judul: 'Belum ada penjualan',
             keterangan:
-                'Tidak ada transaksi selesai dalam ${_periode.label.toLowerCase()}. '
+                'Tidak ada transaksi selesai dalam periode terpilih. '
                 'Laporan akan terisi sendiri begitu kasir dipakai.',
           ),
           isi: (context, l) => _IsiRingkasan(laporan: l),
@@ -132,62 +339,98 @@ class _RingkasanState extends State<_Ringkasan> {
   }
 }
 
-/// Pemilih periode. Dibangun tangan, bukan `SegmentedButton`, karena bawaan
-/// Material mengukur diri dari panjang labelnya — dan pada 320 px "Hari ini ·
-/// 7 hari · 30 hari" sudah meluber. Tiga [Expanded] selalu muat.
-class _PilihPeriode extends StatelessWidget {
-  const _PilihPeriode({required this.nilai, required this.onPilih});
+class _PilihPeriodeLengkap extends StatelessWidget {
+  const _PilihPeriodeLengkap({
+    required this.modeFilter,
+    required this.labelPeriode,
+    required this.onPilihMode,
+    required this.onKlikRincian,
+  });
 
-  final Periode nilai;
-  final ValueChanged<Periode> onPilih;
+  final String modeFilter;
+  final String labelPeriode;
+  final ValueChanged<String> onPilihMode;
+  final VoidCallback onKlikRincian;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: context.aksen.isian,
-        borderRadius: BorderRadius.circular(Lengkung.kontrol),
-      ),
-      child: Row(
-        children: [
-          for (final p in Periode.values)
-            Expanded(
-              child: Semantics(
-                button: true,
-                selected: p == nilai,
-                child: InkWell(
-                  onTap: () => onPilih(p),
-                  borderRadius: BorderRadius.circular(Lengkung.kecil),
-                  child: AnimatedContainer(
-                    duration: Gerak.cepat,
-                    height: 38,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: p == nilai
-                          ? context.warna.surfaceContainerLowest
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(Lengkung.kecil),
-                    ),
-                    child: Text(
-                      p.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: context.teks.bodySmall?.copyWith(
-                        fontWeight: p == nilai
-                            ? FontWeight.w700
-                            : FontWeight.w500,
-                        color: p == nilai
-                            ? context.warna.onSurface
-                            : context.warna.onSurfaceVariant,
-                      ),
+    final pilihan = [
+      ('HARI_INI', 'Harian'),
+      ('TUJUH_HARI', 'Mingguan'),
+      ('TIGA_PULUH_HARI', 'Bulanan'),
+      ('TAHUNAN', 'Tahunan'),
+      ('CUSTOM', 'Kustom'),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 38,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              for (final (mode, label) in pilihan) ...[
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: ChoiceChip(
+                    label: Text(label),
+                    selected: modeFilter == mode,
+                    onSelected: (selected) {
+                      if (selected) onPilihMode(mode);
+                    },
+                    selectedColor: context.aksen.fokus,
+                    labelStyle: TextStyle(
+                      color: modeFilter == mode
+                          ? context.aksen.atasFokus
+                          : context.warna.onSurface,
+                      fontWeight:
+                          modeFilter == mode ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
                 ),
-              ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        InkWell(
+          onTap: onKlikRincian,
+          borderRadius: BorderRadius.circular(Lengkung.kecil),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: context.aksen.isian,
+              borderRadius: BorderRadius.circular(Lengkung.kecil),
+              border: Border.all(color: context.warna.outline),
             ),
-        ],
-      ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.calendar_today_outlined,
+                  size: 14,
+                  color: context.warna.onSurfaceVariant,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  labelPeriode,
+                  style: context.teks.bodySmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: context.warna.onSurface,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.arrow_drop_down,
+                  size: 18,
+                  color: context.warna.onSurfaceVariant,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

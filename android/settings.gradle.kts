@@ -24,3 +24,22 @@ plugins {
 }
 
 include(":app")
+
+gradle.beforeProject {
+    if (this != rootProject) {
+        plugins.withId("com.android.library") {
+            extensions.findByType(com.android.build.gradle.LibraryExtension::class.java)?.apply {
+                if (namespace == null) {
+                    val manifestFile = file("src/main/AndroidManifest.xml")
+                    val pkgMatch = if (manifestFile.exists()) Regex("""package="([^"]+)"""").find(manifestFile.readText()) else null
+                    namespace = pkgMatch?.groupValues?.get(1) ?: "com.flutter.plugins.${this@beforeProject.name.replace("-", "_")}"
+                }
+            }
+        }
+        afterEvaluate {
+            extensions.findByType(com.android.build.gradle.LibraryExtension::class.java)?.apply {
+                compileSdk = 36
+            }
+        }
+    }
+}

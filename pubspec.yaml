@@ -38,6 +38,10 @@ dependencies:
   google_fonts: ^8.2.0
   http: ^1.4.0
   shared_preferences: ^2.5.0
+  pdf: ^3.11.1
+  printing: ^5.13.3
+  blue_thermal_printer: ^1.2.3
+
 
 dev_dependencies:
   flutter_test:

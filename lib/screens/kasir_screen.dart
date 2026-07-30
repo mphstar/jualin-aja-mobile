@@ -2,16 +2,18 @@ import 'package:flutter/material.dart';
 
 import '../data/model.dart';
 import '../data/repositori.dart';
+import '../data/sesi_kasir.dart';
 import '../theme/app_theme.dart';
-import 'bayar_screen.dart';
 import '../theme/tokens.dart';
 import '../util/format.dart';
 import '../widgets/bingkai.dart';
 import '../widgets/blok_foto.dart';
 import '../widgets/chip_kategori.dart';
 import '../widgets/keadaan.dart';
+import '../widgets/lembar_buka_kasir.dart';
 import '../widgets/rangka.dart';
 import '../widgets/tombol_pil.dart';
+import 'bayar_screen.dart';
 
 /// Layar kasir. Mode layar penuh, bukan tab.
 ///
@@ -43,6 +45,20 @@ class _KasirScreenState extends State<KasirScreen> {
   List<Kategori> _kategori = const [];
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final sesi = await Repositori.muatSesiKasirAktif();
+      if (sesi == null && mounted) {
+        final profil = await Repositori.profil();
+        if (mounted) {
+          await LembarBukaKasir.tampilkan(context, profilDefault: profil);
+        }
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _kendaliCari.dispose();
     super.dispose();
@@ -68,15 +84,16 @@ class _KasirScreenState extends State<KasirScreen> {
   int get _total => _isiKeranjang.fold(0, (n, i) => n + i.subtotal);
   int get _jumlahItem => _keranjang.values.fold(0, (n, j) => n + j);
 
-  /// Jumlah maksimum yang boleh masuk keranjang.
-  ///
-  /// Produk tanpa pelacakan stok tidak punya batas — itu memang artinya tidak
-  /// dilacak. Yang dilacak berhenti di sisanya: keranjang berisi 8 sementara
-  /// raknya berisi 3 adalah janji yang tidak bisa ditepati, dan baru ketahuan
-  /// saat pembeli sudah membayar.
   int _batas(Produk p) => p.lacakStok ? p.stok : 1 << 31;
 
-  void _ubah(String id, int delta) {
+  Future<void> _ubah(String id, int delta) async {
+    if (delta > 0 && Repositori.sesiKasirAktif.value == null) {
+      final profil = await Repositori.profil();
+      if (!mounted) return;
+      final sesi = await LembarBukaKasir.tampilkan(context, profilDefault: profil);
+      if (sesi == null) return;
+    }
+
     setState(() {
       final p = _semua.firstWhere((e) => e.id == id);
       final baru = ((_keranjang[id] ?? 0) + delta).clamp(0, _batas(p));
@@ -90,20 +107,19 @@ class _KasirScreenState extends State<KasirScreen> {
 
   void _kosongkan() => setState(_keranjang.clear);
 
-  /// Buka layar pembayaran, lalu **selalu** samakan keranjang dengan apa yang
-  /// dibawa kembali layar itu.
-  ///
-  /// Dua keadaan, satu jalan pulang. Transaksi yang tersimpan mengembalikan
-  /// pesanan kosong sehingga keranjang ikut kosong; yang dibatalkan
-  /// mengembalikan pesanan apa adanya — termasuk baris yang barusan ditambah
-  /// atau dihapus di layar bayar. Yang dulu dilakukan di sini — menebak dari
-  /// nomor struk terakhir apakah transaksinya jadi — tidak pernah bisa benar:
-  /// nomornya dibaca setelah layar bayar menutup diri, jadi ia selalu
-  /// dibandingkan dengan dirinya sendiri.
   Future<void> _bayar() async {
     final item = _isiKeranjang;
     if (item.isEmpty) return;
 
+    var sesi = Repositori.sesiKasirAktif.value;
+    if (sesi == null) {
+      final profil = await Repositori.profil();
+      if (!mounted) return;
+      sesi = await LembarBukaKasir.tampilkan(context, profilDefault: profil);
+      if (sesi == null) return;
+    }
+
+    if (!mounted) return;
     final hasil = await Navigator.of(context).push<HasilKasir>(
       MaterialPageRoute<HasilKasir>(
         builder: (_) => BayarScreen(
@@ -163,10 +179,6 @@ class _KasirScreenState extends State<KasirScreen> {
     );
   }
 
-  /// Nomor struk yang akan dipakai transaksi ini — dihitung Repositori dari
-  /// struk terakhir, bukan dikarang di layar.
-  String get _strukBerikutnya => Repositori.nomorStrukBerikutnya();
-
   Future<void> _tanyaKosongkan() async {
     // Mengosongkan keranjang membuang pekerjaan yang tidak bisa dikembalikan,
     // dan tombolnya duduk tepat di sebelah tombol tutup. Satu ketukan salah
@@ -216,35 +228,34 @@ class _KasirScreenState extends State<KasirScreen> {
         // Dua baris: layar apa ini, dan struk mana yang sedang disusun. Nomor
         // struk berikutnya tidak muncul di tempat lain mana pun, jadi ia
         // menambah keterangan alih-alih mengulang bilah keranjang di bawah.
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Kasir'),
-            Text(
-              _strukBerikutnya,
-              style: context.teks.bodySmall?.copyWith(
-                color: context.warna.onSurfaceVariant,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+        title: ValueListenableBuilder<SesiKasir?>(
+          valueListenable: Repositori.sesiKasirAktif,
+          builder: (context, sesi, _) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Kasir'),
+                Text(
+                  sesi == null
+                      ? 'Kasir Belum Dibuka'
+                      : 'Kasir: ${sesi.namaKasir} · Omzet: ${rupiah(sesi.totalPenjualan)}',
+                  style: context.teks.bodySmall?.copyWith(
+                    color: context.warna.onSurfaceVariant,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            );
+          },
         ),
-        // Dua pil setinggi sama, bukan satu tombol teks di sebelah satu ikon
-        // bulat. Keduanya mengurus benda yang sama — keranjang — jadi mereka
-        // harus terbaca sebagai sepasang kontrol, bukan dua hal yang kebetulan
-        // bertetangga.
         actions: [
           if (_jumlahItem > 0) ...[
             _TombolKosongkan(ringkas: ringkas, onTekan: _tanyaKosongkan),
             const SizedBox(width: Jarak.xs3),
           ],
-          // Keranjang butuh jalan masuk yang selalu di tempat yang sama.
-          // Sebelum ini satu-satunya cara membukanya adalah mengetuk bilah
-          // mengambang — yang justru tidak ada saat keranjang masih kosong,
-          // jadi tidak pernah ada tempat untuk belajar bahwa ia bisa dibuka.
           if (!duaPanel)
             Padding(
               padding: const EdgeInsets.only(right: Jarak.xs),
@@ -259,12 +270,63 @@ class _KasirScreenState extends State<KasirScreen> {
           child: Divider(height: 1, color: context.warna.outline),
         ),
       ),
-      body: Bingkai<(List<Kategori>, List<Produk>)>(
-        ambil: () async {
-          final k = await Repositori.kategori();
-          final p = await Repositori.produk();
-          return (k, p);
-        },
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ValueListenableBuilder<SesiKasir?>(
+            valueListenable: Repositori.sesiKasirAktif,
+            builder: (context, sesi, _) {
+              if (sesi != null) return const SizedBox.shrink();
+              return Container(
+                color: context.aksen.bahaya.withAlpha(25),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: Jarak.sm,
+                  vertical: Jarak.xs3,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      size: 20,
+                      color: context.aksen.bahaya,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Kasir belum dibuka. Buka kasir untuk memproses transaksi.',
+                        style: context.teks.bodySmall?.copyWith(
+                          color: context.aksen.bahaya,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        foregroundColor: context.aksen.bahaya,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                      onPressed: () async {
+                        final profil = await Repositori.profil();
+                        if (!context.mounted) return;
+                        await LembarBukaKasir.tampilkan(
+                          context,
+                          profilDefault: profil,
+                        );
+                      },
+                      child: const Text('Buka Kasir'),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          Expanded(
+            child: Bingkai<(List<Kategori>, List<Produk>)>(
+              ambil: () async {
+                final k = await Repositori.kategori();
+                final p = await Repositori.produk();
+                return (k, p);
+              },
         rangka: Padding(
           padding: const EdgeInsets.all(Jarak.sm),
           child: Column(
@@ -354,6 +416,9 @@ class _KasirScreenState extends State<KasirScreen> {
           );
         },
       ),
+    ),
+  ],
+),
     );
   }
 }

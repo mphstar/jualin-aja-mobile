@@ -5,8 +5,10 @@ import '../data/repositori.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../util/format.dart';
+import '../util/pencetak_struk.dart';
 import '../widgets/bingkai.dart';
 import '../widgets/kartu.dart';
+import '../widgets/lembar_pilih_printer.dart';
 import '../widgets/rangka.dart';
 import '../widgets/tombol_pil.dart';
 
@@ -214,7 +216,7 @@ class _IsiState extends State<_Isi> {
                   ),
 
                   const SizedBox(height: Jarak.md),
-                  _CatatanPrinter(),
+                  _OpsiPencetak(toko: widget.toko, pengaturan: pratinjau),
 
                   if (_galat != null) ...[
                     const SizedBox(height: Jarak.sm),
@@ -311,37 +313,92 @@ class _Sakelar extends StatelessWidget {
   }
 }
 
-class _CatatanPrinter extends StatelessWidget {
+class _OpsiPencetak extends StatefulWidget {
+  const _OpsiPencetak({required this.toko, required this.pengaturan});
+
+  final Toko toko;
+  final PengaturanStruk pengaturan;
+
+  @override
+  State<_OpsiPencetak> createState() => _OpsiPencetakState();
+}
+
+class _OpsiPencetakState extends State<_OpsiPencetak> {
+  String _namaPrinter = 'Belum ada printer dipilih';
+
+  @override
+  void initState() {
+    super.initState();
+    _muatPrinter();
+  }
+
+  Future<void> _muatPrinter() async {
+    final d = await PencetakStruk.ambilPrinterTersimpan();
+    if (!mounted) return;
+    setState(() {
+      _namaPrinter = d == null
+          ? 'Belum ada printer dipilih'
+          : (d.name ?? d.address ?? 'Printer Bluetooth');
+    });
+  }
+
+  Future<void> _pilihPrinter() async {
+    await LembarPilihPrinter.tampilkan(context);
+    await _muatPrinter();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(Jarak.xs),
-      decoration: BoxDecoration(
-        color: context.aksen.kartuAlt,
-        borderRadius: BorderRadius.circular(Lengkung.kontrol),
-        border: Border.all(color: context.warna.outline),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            Icons.print_outlined,
-            size: 20,
-            color: context.warna.onSurfaceVariant,
-          ),
-          const SizedBox(width: Jarak.xs2),
-          Expanded(
-            child: Text(
-              'Penyambungan printer Bluetooth menyusul. Sampai saat itu, '
-              'struk bisa dilihat di Laporan · Riwayat dan dibagikan dari sana.',
-              style: context.teks.bodySmall?.copyWith(
-                color: context.warna.onSurfaceVariant,
-                height: 1.45,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const JudulBagian('Printer Bluetooth'),
+        KartuDaftar(
+          anak: [
+            BarisDaftar(
+              awalan: Icon(
+                Icons.bluetooth_audio,
+                size: 22,
+                color: context.warna.onSurface,
+              ),
+              judul: _namaPrinter,
+              keterangan: 'Ketuk untuk memilih / mengganti printer Bluetooth',
+              bawahAkhiran: const Icon(Icons.chevron_right, size: 20),
+              onTekan: _pilihPrinter,
+            ),
+            BarisDaftar(
+              awalan: Icon(
+                Icons.print_outlined,
+                size: 22,
+                color: context.warna.onSurface,
+              ),
+              judul: 'Tes cetak struk (Bluetooth)',
+              keterangan: 'Kirim struk contoh langsung ke printer Bluetooth',
+              bawahAkhiran: const Icon(Icons.chevron_right, size: 20),
+              onTekan: () => PencetakStruk.cetakStrukUjiCoba(
+                context,
+                toko: widget.toko,
+                pengaturan: widget.pengaturan,
               ),
             ),
-          ),
-        ],
-      ),
+            BarisDaftar(
+              awalan: Icon(
+                Icons.share_outlined,
+                size: 22,
+                color: context.warna.onSurface,
+              ),
+              judul: 'Bagikan pratinjau struk',
+              keterangan: 'Kirim file PDF struk contoh via WhatsApp atau email',
+              bawahAkhiran: const Icon(Icons.chevron_right, size: 20),
+              onTekan: () => PencetakStruk.bagikanStrukUjiCoba(
+                context,
+                toko: widget.toko,
+                pengaturan: widget.pengaturan,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

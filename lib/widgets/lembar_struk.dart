@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../data/model.dart';
+import '../data/repositori.dart';
 import '../screens/sunting_pesanan_screen.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../util/format.dart';
+import '../util/pencetak_struk.dart';
 import 'kartu.dart';
 import 'lembar_pelunasan.dart';
 import 'lencana.dart';
@@ -188,23 +190,24 @@ class LembarStruk extends StatelessWidget {
                 ),
               ),
             ] else
-              OutlinedButton.icon(
-                onPressed: () {
-                  final pesan = ScaffoldMessenger.of(context);
-                  Navigator.of(context).pop();
-                  pesan
-                    ..hideCurrentSnackBar()
-                    ..showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Printer belum tersambung. '
-                          'Atur di Akun · Struk & printer.',
-                        ),
-                      ),
-                    );
-                },
-                icon: const Icon(Icons.print_outlined, size: 18),
-                label: const Text('Cetak ulang'),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _cetak(context),
+                      icon: const Icon(Icons.print_outlined, size: 18),
+                      label: const Text('Cetak ulang'),
+                    ),
+                  ),
+                  const SizedBox(width: Jarak.xs2),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _bagikan(context),
+                      icon: const Icon(Icons.share_outlined, size: 18),
+                      label: const Text('Bagikan'),
+                    ),
+                  ),
+                ],
               ),
           ],
         ),
@@ -212,6 +215,46 @@ class LembarStruk extends StatelessWidget {
     ),
   );
 }
+
+  Future<void> _cetak(BuildContext context) async {
+    final pesan = ScaffoldMessenger.of(context);
+    Navigator.of(context).pop();
+    try {
+      final toko = await Repositori.toko();
+      final pengaturan = await Repositori.pengaturanStruk();
+      if (!context.mounted) return;
+      await PencetakStruk.cetakOtomatisBluetooth(
+        context,
+        toko: toko,
+        pengaturan: pengaturan,
+        transaksi: transaksi,
+      );
+    } catch (e) {
+      pesan.showSnackBar(
+        SnackBar(content: Text('Gagal mencetak struk: $e')),
+      );
+    }
+  }
+
+  Future<void> _bagikan(BuildContext context) async {
+    final pesan = ScaffoldMessenger.of(context);
+    Navigator.of(context).pop();
+    try {
+      final toko = await Repositori.toko();
+      final pengaturan = await Repositori.pengaturanStruk();
+      if (!context.mounted) return;
+      await PencetakStruk.bagikanStruk(
+        context,
+        toko: toko,
+        pengaturan: pengaturan,
+        transaksi: transaksi,
+      );
+    } catch (e) {
+      pesan.showSnackBar(
+        SnackBar(content: Text('Gagal membagikan struk: $e')),
+      );
+    }
+  }
 }
 
 /// Sorotan piutang di dalam detail struk.

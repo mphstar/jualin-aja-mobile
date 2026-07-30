@@ -5,67 +5,131 @@ import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../util/format.dart';
 
-/// Grafik batang omzet harian — dibangun tangan, tanpa pustaka grafik.
-///
-/// Alasannya bukan penghematan: satu deret batang tidak butuh mesin grafik
-/// seukuran itu, dan pustaka grafik membawa temanya sendiri yang kemudian
-/// harus dilawan token demi token. Yang dibutuhkan cuma proporsi tinggi, dan
-/// `FractionallySizedBox` sudah melakukannya persis.
-///
-/// Yang ditandai adalah hari **tertinggi**, bukan hari ini. Hari ini sudah
-/// punya tempatnya sendiri di Beranda; yang tidak bisa dilihat di tempat lain
-/// adalah hari terbaik dalam periode ini.
-class GrafikBatang extends StatelessWidget {
+/// Grafik batang omzet harian — dibangun tangan dengan dukungan Interaktif/Hover/Tooltip.
+class GrafikBatang extends StatefulWidget {
   const GrafikBatang({super.key, required this.titik, this.tinggi = 132});
 
   final List<TitikHarian> titik;
   final double tinggi;
 
   @override
+  State<GrafikBatang> createState() => _GrafikBatangState();
+}
+
+class _GrafikBatangState extends State<GrafikBatang> {
+  int? _terpilih;
+
+  @override
   Widget build(BuildContext context) {
-    if (titik.isEmpty) return const SizedBox.shrink();
+    if (widget.titik.isEmpty) return const SizedBox.shrink();
 
-    final maks = titik.fold(0, (n, t) => t.omzet > n ? t.omzet : n);
-    final indeksMaks = titik.indexWhere((t) => t.omzet == maks);
-    final tertinggi = titik[indeksMaks];
+    final maks = widget.titik.fold(0, (n, t) => t.omzet > n ? t.omzet : n);
+    final indeksMaks = widget.titik.indexWhere((t) => t.omzet == maks);
+    final tertinggi = widget.titik[indeksMaks < 0 ? 0 : indeksMaks];
 
-    // Label per batang cuma muat sampai tujuh. Lebih dari itu ia jadi bubur
-    // dan lebih baik diganti keterangan rentang di bawah grafik.
-    final adaLabel = titik.length <= 7;
+    final aktif = _terpilih != null &&
+            _terpilih! >= 0 &&
+            _terpilih! < widget.titik.length
+        ? widget.titik[_terpilih!]
+        : null;
+
+    final adaLabel = widget.titik.length <= 12 ||
+        widget.titik.any((t) => t.label != null && t.label!.isNotEmpty);
+
+    final headerText = aktif != null
+        ? '${aktif.label ?? tanggal(aktif.tanggal)}: ${rupiah(aktif.omzet)} (${aktif.transaksi} transaksi)'
+        : '';
+
+    final tertinggiText = tertinggi.label != null
+        ? 'Tertinggi ${rupiah(tertinggi.omzet)} · ${tertinggi.label}'
+        : 'Tertinggi ${rupiah(tertinggi.omzet)} · ${tanggal(tertinggi.tanggal)}';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (maks > 0) ...[
-          Text(
-            'Tertinggi ${rupiah(tertinggi.omzet)} · ${tanggal(tertinggi.tanggal)}',
-            style: context.teks.bodySmall?.copyWith(
-              color: context.warna.onSurfaceVariant,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: Jarak.xs),
-        ],
         SizedBox(
-          height: tinggi,
+          height: 26,
+          child: AnimatedCrossFade(
+            crossFadeState: aktif != null
+                ? CrossFadeState.showFirst
+                : CrossFadeState.showSecond,
+            duration: Gerak.cepat,
+            alignment: Alignment.centerLeft,
+            firstChild: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 4,
+              ),
+              decoration: BoxDecoration(
+                color: context.aksen.fokus,
+                borderRadius: BorderRadius.circular(Lengkung.kecil),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.touch_app,
+                    size: 14,
+                    color: context.aksen.atasFokus,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    headerText,
+                    style: context.teks.bodySmall?.copyWith(
+                      color: context.aksen.atasFokus,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            secondChild: maks > 0
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      tertinggiText,
+                      style: context.teks.bodySmall?.copyWith(
+                        color: context.warna.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ),
+        const SizedBox(height: Jarak.xs),
+        SizedBox(
+          height: widget.tinggi,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              for (var i = 0; i < titik.length; i++)
+              for (var i = 0; i < widget.titik.length; i++)
                 Expanded(
                   child: Padding(
                     padding: EdgeInsets.symmetric(
-                      horizontal: titik.length > 12 ? 1 : 3,
+                      horizontal: widget.titik.length > 12 ? 1 : 3,
                     ),
-                    child: _Batang(
-                      // Hari nol tetap menyisakan guratan tipis. Batang yang
-                      // benar-benar hilang terbaca sebagai data yang tidak ada,
-                      // padahal artinya toko sepi — dua hal yang sangat berbeda.
-                      porsi: maks == 0
-                          ? 0.02
-                          : (titik[i].omzet / maks).clamp(0.02, 1.0),
-                      ditandai: i == indeksMaks && maks > 0,
+                    child: MouseRegion(
+                      onEnter: (_) => setState(() => _terpilih = i),
+                      onExit: (_) => setState(() => _terpilih = null),
+                      child: GestureDetector(
+                        onTapDown: (_) => setState(() => _terpilih = i),
+                        child: Tooltip(
+                          message:
+                              '${widget.titik[i].label ?? tanggal(widget.titik[i].tanggal)}: ${rupiah(widget.titik[i].omzet)}',
+                          child: _Batang(
+                            porsi: maks == 0
+                                ? 0.02
+                                : (widget.titik[i].omzet / maks).clamp(
+                                    0.02,
+                                    1.0,
+                                  ),
+                            ditandai: i == indeksMaks && maks > 0,
+                            terpilih: i == _terpilih,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -76,10 +140,10 @@ class GrafikBatang extends StatelessWidget {
         if (adaLabel)
           Row(
             children: [
-              for (final t in titik)
+              for (final t in widget.titik)
                 Expanded(
                   child: Text(
-                    hariPendek(t.tanggal),
+                    t.label ?? hariPendek(t.tanggal),
                     textAlign: TextAlign.center,
                     maxLines: 1,
                     overflow: TextOverflow.clip,
@@ -96,7 +160,7 @@ class GrafikBatang extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  tanggal(titik.first.tanggal),
+                  widget.titik.first.label ?? tanggal(widget.titik.first.tanggal),
                   style: context.teks.labelSmall?.copyWith(
                     color: context.warna.onSurfaceVariant,
                     letterSpacing: 0,
@@ -107,7 +171,7 @@ class GrafikBatang extends StatelessWidget {
               ),
               Expanded(
                 child: Text(
-                  tanggal(titik.last.tanggal),
+                  widget.titik.last.label ?? tanggal(widget.titik.last.tanggal),
                   textAlign: TextAlign.right,
                   style: context.teks.labelSmall?.copyWith(
                     color: context.warna.onSurfaceVariant,
@@ -125,10 +189,15 @@ class GrafikBatang extends StatelessWidget {
 }
 
 class _Batang extends StatelessWidget {
-  const _Batang({required this.porsi, required this.ditandai});
+  const _Batang({
+    required this.porsi,
+    required this.ditandai,
+    this.terpilih = false,
+  });
 
   final double porsi;
   final bool ditandai;
+  final bool terpilih;
 
   @override
   Widget build(BuildContext context) {
@@ -139,10 +208,17 @@ class _Batang extends StatelessWidget {
         widthFactor: 1,
         child: Container(
           decoration: BoxDecoration(
-            color: ditandai ? context.aksen.fokus : context.aksen.isian,
+            color: terpilih
+                ? context.aksen.peringatan
+                : ditandai
+                    ? context.aksen.fokus
+                    : context.aksen.isian,
             borderRadius: const BorderRadius.vertical(
               top: Radius.circular(Jarak.xs3),
             ),
+            border: terpilih
+                ? Border.all(color: context.warna.onSurface, width: 1.5)
+                : null,
           ),
         ),
       ),
@@ -150,31 +226,25 @@ class _Batang extends StatelessWidget {
   }
 }
 
-/// Garis percikan — versi ringkas [GrafikBatang] untuk di dalam panel tinta.
-///
-/// Angka tunggal "Rp 1.234.000" tidak memberi tahu apakah hari ini bagus.
-/// Tujuh batang di bawahnya menjawabnya tanpa satu kata pun, dan memakai
-/// bahasa visual yang sama dengan grafik di Laporan — itu yang membuat kedua
-/// layar terbaca sebagai satu aplikasi.
+/// Sparkline mikro untuk tren omzet di beranda.
 class Percikan extends StatelessWidget {
   const Percikan({
     super.key,
     required this.nilai,
     required this.warna,
-    required this.warnaAkhir,
-    this.tinggi = 34,
+    this.warnaAkhir,
+    this.tinggi = 28,
   });
 
   final List<int> nilai;
-
-  /// Warna batang biasa dan batang terakhir (hari ini).
   final Color warna;
-  final Color warnaAkhir;
+  final Color? warnaAkhir;
   final double tinggi;
 
   @override
   Widget build(BuildContext context) {
-    if (nilai.isEmpty) return const SizedBox.shrink();
+    if (nilai.isEmpty) return SizedBox(height: tinggi);
+
     final maks = nilai.fold(0, (n, v) => v > n ? v : n);
 
     return SizedBox(
@@ -185,21 +255,22 @@ class Percikan extends StatelessWidget {
           for (var i = 0; i < nilai.length; i++)
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 1.5),
                 child: Align(
                   alignment: Alignment.bottomCenter,
                   child: FractionallySizedBox(
-                    // Hari nol tetap menyisakan guratan. Batang yang hilang
-                    // terbaca sebagai data yang tidak ada, padahal artinya
-                    // toko sepi — dua hal yang sangat berbeda.
                     heightFactor: maks == 0
-                        ? 0.06
-                        : (nilai[i] / maks).clamp(0.06, 1.0),
+                        ? 0.05
+                        : (nilai[i] / maks).clamp(0.05, 1.0),
                     widthFactor: 1,
-                    child: DecoratedBox(
+                    child: Container(
                       decoration: BoxDecoration(
-                        color: i == nilai.length - 1 ? warnaAkhir : warna,
-                        borderRadius: BorderRadius.circular(3),
+                        color: i == nilai.length - 1 && warnaAkhir != null
+                            ? warnaAkhir
+                            : warna,
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(2),
+                        ),
                       ),
                     ),
                   ),
@@ -212,23 +283,36 @@ class Percikan extends StatelessWidget {
   }
 }
 
-/// Bilah proporsi mendatar — dipakai untuk rincian metode pembayaran.
+/// Bilah porsi horizontal untuk daftar produk terlaris.
 class BilahPorsi extends StatelessWidget {
-  const BilahPorsi({super.key, required this.porsi, this.ditandai = false});
+  const BilahPorsi({
+    super.key,
+    required this.porsi,
+    required this.ditandai,
+    this.tinggi = 6,
+  });
 
   final double porsi;
   final bool ditandai;
+  final double tinggi;
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(Lengkung.bulat),
-      child: LinearProgressIndicator(
-        value: porsi.clamp(0.0, 1.0),
-        minHeight: 6,
-        backgroundColor: context.aksen.isian,
-        valueColor: AlwaysStoppedAnimation(
-          ditandai ? context.aksen.fokus : context.warna.onSurfaceVariant,
+    return Container(
+      height: tinggi,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: context.aksen.isian,
+        borderRadius: BorderRadius.circular(Lengkung.bulat),
+      ),
+      child: FractionallySizedBox(
+        alignment: Alignment.centerLeft,
+        widthFactor: porsi.clamp(0.02, 1.0),
+        child: Container(
+          decoration: BoxDecoration(
+            color: ditandai ? context.aksen.fokus : context.warna.outline,
+            borderRadius: BorderRadius.circular(Lengkung.bulat),
+          ),
         ),
       ),
     );
