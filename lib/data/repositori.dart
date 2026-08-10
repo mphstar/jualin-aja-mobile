@@ -728,4 +728,54 @@ abstract final class Repositori {
     }
     return hasil;
   }
+
+  // -------------------------------------------------------------------------
+  // Ticketing & Support (Saran & Komplain)
+  // -------------------------------------------------------------------------
+
+  static TiketDukungan _tiketDariJson(Map<String, dynamic> j) {
+    return TiketDukungan(
+      id: j['id'] as int,
+      nomorTiket: j['nomorTiket'] as String,
+      jenis: JenisTiket.dariString(j['jenis'] as String? ?? 'SARAN'),
+      subjek: j['subjek'] as String? ?? '',
+      pesan: j['pesan'] as String? ?? '',
+      status: StatusTiketTiketing.dariString(j['status'] as String? ?? 'TERBUKA'),
+      dibuatPada: DateTime.parse(j['dibuatPada'] as String),
+      balasanAdmin: j['balasanAdmin'] as String?,
+      dibalasPada: j['dibalasPada'] != null
+          ? DateTime.parse(j['dibalasPada'] as String)
+          : null,
+    );
+  }
+
+  static Future<List<TiketDukungan>> tiket() async {
+    final list = await api.getDaftar('/tiket');
+    return list
+        .map((e) => _tiketDariJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  static Future<TiketDukungan> buatTiket({
+    required JenisTiket jenis,
+    required String subjek,
+    required String pesan,
+  }) async {
+    final j = await api.post('/tiket', {
+      'jenis': switch (jenis) {
+        JenisTiket.saran => 'SARAN',
+        JenisTiket.komplain => 'KOMPLAIN',
+        JenisTiket.pertanyaan => 'PERTANYAAN',
+      },
+      'subjek': subjek,
+      'pesan': pesan,
+    });
+    revisiData.value++;
+    return _tiketDariJson(j);
+  }
+
+  static Future<TiketDukungan> detailTiket(int id) async {
+    final j = await api.get('/tiket/$id');
+    return _tiketDariJson(j);
+  }
 }

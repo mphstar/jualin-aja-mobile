@@ -793,3 +793,92 @@ class Laporan {
 
   bool get kosong => transaksi == 0;
 }
+
+// ---------------------------------------------------------------------------
+// Model Ticketing & Support (Saran & Komplain)
+// ---------------------------------------------------------------------------
+
+enum JenisTiket {
+  saran,
+  komplain,
+  pertanyaan;
+
+  String get label {
+    switch (this) {
+      case JenisTiket.saran:
+        return 'Saran Pengembangan';
+      case JenisTiket.komplain:
+        return 'Komplain / Bug';
+      case JenisTiket.pertanyaan:
+        return 'Pertanyaan Bantuan';
+    }
+  }
+
+  static JenisTiket dariString(String v) {
+    switch (v.toUpperCase()) {
+      case 'SARAN':
+        return JenisTiket.saran;
+      case 'KOMPLAIN':
+        return JenisTiket.komplain;
+      default:
+        return JenisTiket.pertanyaan;
+    }
+  }
+}
+
+enum StatusTiketTiketing {
+  terbuka,
+  diproses,
+  selesai,
+  ditutup;
+
+  String get label {
+    switch (this) {
+      case StatusTiketTiketing.terbuka:
+        return 'Terbuka';
+      case StatusTiketTiketing.diproses:
+        return 'Diproses';
+      case StatusTiketTiketing.selesai:
+        return 'Selesai';
+      case StatusTiketTiketing.ditutup:
+        return 'Ditutup';
+    }
+  }
+
+  static StatusTiketTiketing dariString(String v) {
+    switch (v.toUpperCase()) {
+      case 'DIPROSES':
+        return StatusTiketTiketing.diproses;
+      case 'SELESAI':
+        return StatusTiketTiketing.selesai;
+      case 'DITUTUP':
+        return StatusTiketTiketing.ditutup;
+      default:
+        return StatusTiketTiketing.terbuka;
+    }
+  }
+}
+
+class TiketDukungan {
+  const TiketDukungan({
+    required this.id,
+    required this.nomorTiket,
+    required this.jenis,
+    required this.subjek,
+    required this.pesan,
+    required this.status,
+    required this.dibuatPada,
+    this.balasanAdmin,
+    this.dibalasPada,
+  });
+
+  final int id;
+  final String nomorTiket;
+  final JenisTiket jenis;
+  final String subjek;
+  final String pesan;
+  final StatusTiketTiketing status;
+  final DateTime dibuatPada;
+  final String? balasanAdmin;
+  final DateTime? dibalasPada;
+}

@@ -4,6 +4,7 @@ import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../widgets/ikon_kotak.dart';
 import '../widgets/kartu.dart';
+import 'tiket_screen.dart';
 
 /// Halaman Bantuan dan Dukungan Pelanggan (FAQ & Contact Support).
 class BantuanScreen extends StatelessWidget {
@@ -27,6 +28,21 @@ class BantuanScreen extends StatelessWidget {
               const SizedBox(height: Jarak.xs),
               KartuDaftar(
                 anak: [
+                  BarisDaftar(
+                    awalan: const IkonKotak(Icons.rate_review_outlined, ukuran: 36),
+                    judul: 'Saran & Komplain',
+                    keterangan: 'Kirim masukan atau laporkan kendala ke admin',
+                    bawahAkhiran: Icon(
+                      Icons.chevron_right,
+                      size: 20,
+                      color: context.warna.onSurfaceVariant,
+                    ),
+                    onTekan: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const TiketScreen(),
+                      ),
+                    ),
+                  ),
                   BarisDaftar(
                     awalan: const IkonKotak(Icons.chat_bubble_outline, ukuran: 36),
                     judul: 'WhatsApp CS Support',
