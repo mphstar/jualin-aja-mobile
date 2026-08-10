@@ -190,11 +190,12 @@ class _Sapaan extends StatelessWidget {
             ],
           ),
         ),
-        IconButton(
-          onPressed: () => _menyusul(context, 'Notifikasi'),
-          icon: const Icon(Icons.notifications_none),
-          tooltip: 'Notifikasi',
-        ),
+        // Tombol notifikasi disembunyikan sementara (disimpan untuk pengembangan mendatang)
+        // IconButton(
+        //   onPressed: () => _menyusul(context, 'Notifikasi'),
+        //   icon: const Icon(Icons.notifications_none),
+        //   tooltip: 'Notifikasi',
+        // ),
       ],
     );
   }
@@ -751,6 +752,7 @@ class _BarisTransaksi extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 void _menyusul(BuildContext context, String apa) {
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
