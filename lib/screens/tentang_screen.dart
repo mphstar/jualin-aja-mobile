@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'kebijakan_privasi_screen.dart';
+import 'syarat_ketentuan_screen.dart';
+
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../widgets/ikon_kotak.dart';
@@ -71,15 +74,11 @@ class TentangScreen extends StatelessWidget {
                       size: 20,
                       color: context.warna.onSurfaceVariant,
                     ),
-                    onTekan: () {
-                      ScaffoldMessenger.of(context)
-                        ..hideCurrentSnackBar()
-                        ..showSnackBar(
-                          const SnackBar(
-                            content: Text('Membuka Syarat & Ketentuan Layanan…'),
-                          ),
-                        );
-                    },
+                    onTekan: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const SyaratKetentuanScreen(),
+                      ),
+                    ),
                   ),
                   BarisDaftar(
                     awalan: const IkonKotak(Icons.privacy_tip_outlined, ukuran: 36),
@@ -89,15 +88,11 @@ class TentangScreen extends StatelessWidget {
                       size: 20,
                       color: context.warna.onSurfaceVariant,
                     ),
-                    onTekan: () {
-                      ScaffoldMessenger.of(context)
-                        ..hideCurrentSnackBar()
-                        ..showSnackBar(
-                          const SnackBar(
-                            content: Text('Membuka Kebijakan Privasi…'),
-                          ),
-                        );
-                    },
+                    onTekan: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const KebijakanPrivasiScreen(),
+                      ),
+                    ),
                   ),
                 ],
               ),
