@@ -494,8 +494,7 @@ abstract final class FiturLangganan {
   static bool bolehAksesVoucher(VersiLangganan versi) =>
       versi != VersiLangganan.gratis;
 
-  static bool bolehTransaksi(VersiLangganan versi) =>
-      versi != VersiLangganan.gratis;
+  static bool bolehTransaksi(VersiLangganan versi) => true;
 
   static int? batasMaksimalProduk(VersiLangganan versi) =>
       versi == VersiLangganan.gratis ? batasProdukGratis : null;
@@ -558,7 +557,7 @@ class Langganan {
   /// Voucher/diskon transaksi terbuka untuk Trial dan Langganan.
   bool get bolehAksesVoucher => FiturLangganan.bolehAksesVoucher(versi);
 
-  /// Pencatatan transaksi baru HANYA untuk Trial dan Langganan aktif (Gratis terkunci).
+  /// Pencatatan transaksi terbuka untuk SEMUA versi, termasuk Gratis.
   bool get bolehTransaksi => FiturLangganan.bolehTransaksi(versi);
 
   /// Batas produk versi Gratis = 20, Trial/Langganan = null (unlimited).

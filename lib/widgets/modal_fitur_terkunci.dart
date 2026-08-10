@@ -10,7 +10,6 @@ enum JenisFiturTerkunci {
   resep,
   voucher,
   batasProduk,
-  transaksi,
 }
 
 /// Bottom sheet interaktif dan atraktif untuk memotivasi pengguna melakukan upgrade langganan.
@@ -248,17 +247,6 @@ class ModalFiturTerkunci extends StatelessWidget {
             'Tambah produk & varian tanpa batas jumlah',
             'Kelola stok barang otomatis & peringatan stok habis',
             'Fitur impor & ekspor katalog lewat berkas Excel',
-          ],
-        );
-      case JenisFiturTerkunci.transaksi:
-        return (
-          'Buka Fitur Kasir & Transaksi',
-          'Akun Gratis / Langganan kedaluwarsa tidak dapat mencatat transaksi baru.',
-          Icons.receipt_long_rounded,
-          [
-            'Catat penjualan kasir tanpa batas transaksi',
-            'Cetak struk belanja & laporan keuangan toko lengkap',
-            'Sistem pembayaran tunai, QRIS & pencatatan piutang',
           ],
         );
     }

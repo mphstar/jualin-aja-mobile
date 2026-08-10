@@ -647,6 +647,13 @@ void main() {
       expect(buat(sisa: 300, tangguh: true).bolehAksesVoucher, isFalse);
     });
 
+    test('transaksi terbuka untuk semua versi, termasuk gratis dan trial', () {
+      expect(buat(sisa: 10, d: DurasiPaket.bulanan).bolehTransaksi, isTrue);
+      expect(buat(sisa: 10, d: DurasiPaket.ujiCoba).bolehTransaksi, isTrue); // Trial
+      expect(buat(sisa: -1).bolehTransaksi, isTrue); // Kedaluwarsa (Gratis)
+      expect(buat(sisa: 300, tangguh: true).bolehTransaksi, isTrue); // Nonaktif (Gratis)
+    });
+
     test('batas produk gratis 20, trial dan langganan unlimited', () {
       final gratis = buat(sisa: -1);
       final trial = buat(sisa: 10, d: DurasiPaket.ujiCoba);
