@@ -20,25 +20,44 @@ class TiketScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Saran & Komplain'),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final dibuat = await Navigator.of(context).push<bool>(
-            MaterialPageRoute(
-              builder: (_) => const FormTiketScreen(),
+      floatingActionButton: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(Lengkung.bulat),
+          boxShadow: Bayangan.mengambang,
+        ),
+        child: FloatingActionButton.extended(
+          elevation: 0,
+          highlightElevation: 0,
+          backgroundColor: context.warna.primary,
+          foregroundColor: context.warna.onPrimary,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(Lengkung.bulat),
+          ),
+          onPressed: () async {
+            final dibuat = await Navigator.of(context).push<bool>(
+              MaterialPageRoute(
+                builder: (_) => const FormTiketScreen(),
+              ),
+            );
+            if (dibuat == true && context.mounted) {
+              ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar()
+                ..showSnackBar(
+                  const SnackBar(
+                    content: Text('Laporan/Saran berhasil dikirim ke tim admin.'),
+                  ),
+                );
+            }
+          },
+          icon: const Icon(Icons.add_comment_rounded, size: 20),
+          label: const Text(
+            'Kirim Laporan Baru',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.2,
             ),
-          );
-          if (dibuat == true && context.mounted) {
-            ScaffoldMessenger.of(context)
-              ..hideCurrentSnackBar()
-              ..showSnackBar(
-                const SnackBar(
-                  content: Text('Laporan/Saran berhasil dikirim ke tim admin.'),
-                ),
-              );
-          }
-        },
-        icon: const Icon(Icons.add_comment_outlined),
-        label: const Text('Kirim Laporan'),
+          ),
+        ),
       ),
       body: SafeArea(
         top: false,
