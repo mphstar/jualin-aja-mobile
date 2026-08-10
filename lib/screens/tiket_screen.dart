@@ -115,13 +115,16 @@ class _KartuTiket extends StatelessWidget {
       StatusTiketTiketing.ditutup => context.warna.onSurfaceVariant,
     };
 
-    return Container(
-      decoration: BoxDecoration(
-        color: context.warna.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(Lengkung.kontrol),
-        border: Border.all(color: context.warna.outlineVariant),
-      ),
-      child: ListTile(
+    return Material(
+      color: context.warna.surfaceContainerLowest,
+      borderRadius: BorderRadius.circular(Lengkung.kontrol),
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(Lengkung.kontrol),
+          border: Border.all(color: context.warna.outlineVariant),
+        ),
+        child: ListTile(
         contentPadding: const EdgeInsets.symmetric(
           horizontal: Jarak.md,
           vertical: Jarak.xs2,
@@ -207,6 +210,7 @@ class _KartuTiket extends StatelessWidget {
           color: context.warna.onSurfaceVariant,
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

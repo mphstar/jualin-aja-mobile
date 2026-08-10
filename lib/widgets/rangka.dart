@@ -167,7 +167,7 @@ class RangkaPanel extends StatelessWidget {
     // dua baris; memaksakan tiga akan meluber — dan rangka yang meluber adalah
     // bug yang muncul persis di detik pertama layar dibuka, tiap kali.
     final ruang = tinggi - Jarak.md * 2 - 2;
-    final lega = ruang >= 66;
+    final lega = ruang >= 80;
 
     return Container(
       height: tinggi,
@@ -177,21 +177,24 @@ class RangkaPanel extends StatelessWidget {
         borderRadius: BorderRadius.circular(Lengkung.panel),
         border: Border.all(color: context.warna.outline),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: lega
-            ? const [
-                Rangka(lebar: 120, tinggi: 12),
-                SizedBox(height: Jarak.xs),
-                Rangka(lebar: 190, tinggi: 30),
-                Spacer(),
-                Rangka(tinggi: 12),
-              ]
-            : const [
-                Rangka(lebar: 100, tinggi: 10),
-                SizedBox(height: Jarak.xs2),
-                Rangka(lebar: 160, tinggi: 22),
-              ],
+      child: ClipRect(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: lega
+              ? const [
+                  Rangka(lebar: 120, tinggi: 12),
+                  SizedBox(height: Jarak.xs),
+                  Rangka(lebar: 190, tinggi: 26),
+                  Spacer(),
+                  Rangka(tinggi: 12),
+                ]
+              : const [
+                  Rangka(lebar: 100, tinggi: 10),
+                  SizedBox(height: Jarak.xs2),
+                  Rangka(lebar: 160, tinggi: 20),
+                ],
+        ),
       ),
     );
   }
