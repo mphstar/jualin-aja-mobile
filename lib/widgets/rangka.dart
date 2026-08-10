@@ -47,21 +47,34 @@ class _RangkaState extends State<Rangka> with SingleTickerProviderStateMixin {
   }
 
   @override
+  @override
   Widget build(BuildContext context) {
-    final kotak = Container(
-      width: widget.lebar,
-      height: widget.tinggi,
-      decoration: BoxDecoration(
-        color: context.aksen.isian,
-        borderRadius: BorderRadius.circular(widget.radius),
-      ),
-    );
+    if (MediaQuery.disableAnimationsOf(context)) {
+      return Container(
+        width: widget.lebar,
+        height: widget.tinggi,
+        decoration: BoxDecoration(
+          color: context.warna.outlineVariant.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(widget.radius),
+        ),
+      );
+    }
 
-    if (MediaQuery.disableAnimationsOf(context)) return kotak;
+    return AnimatedBuilder(
+      animation: _kendali,
+      builder: (context, child) {
+        final double opasitas = Tween<double>(begin: 0.35, end: 0.85)
+            .evaluate(CurvedAnimation(parent: _kendali, curve: Curves.easeInOut));
 
-    return FadeTransition(
-      opacity: Tween<double>(begin: 1, end: 0.45).animate(_kendali),
-      child: kotak,
+        return Container(
+          width: widget.lebar,
+          height: widget.tinggi,
+          decoration: BoxDecoration(
+            color: context.warna.outlineVariant.withValues(alpha: opasitas),
+            borderRadius: BorderRadius.circular(widget.radius),
+          ),
+        );
+      },
     );
   }
 }

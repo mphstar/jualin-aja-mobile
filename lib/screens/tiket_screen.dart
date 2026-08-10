@@ -46,13 +46,7 @@ class TiketScreen extends StatelessWidget {
           ambil: Repositori.tiket,
           rangka: const Padding(
             padding: EdgeInsets.all(Jarak.md),
-            child: Column(
-              children: [
-                RangkaPanel(tinggi: 80),
-                SizedBox(height: Jarak.sm),
-                RangkaPanel(tinggi: 80),
-              ],
-            ),
+            child: RangkaDaftar(baris: 4),
           ),
           kosong: (daftar) => daftar.isEmpty,
           saatKosong: const Center(
