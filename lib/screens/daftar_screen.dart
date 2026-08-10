@@ -92,7 +92,7 @@ class _DaftarScreenState extends State<DaftarScreen> {
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Kembali ke Masuk',
         ),
-        title: const TandaMerek(ukuran: 34, berlabel: true),
+        title: const TandaMerekBackdoor(ukuran: 34, berlabel: true),
       ),
       body: SafeArea(
         top: false,

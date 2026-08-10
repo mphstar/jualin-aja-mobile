@@ -1,11 +1,11 @@
 {
-    "name": "mobile",
-    "short_name": "mobile",
+    "name": "JualinAja",
+    "short_name": "JualinAja",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#062016",
+    "theme_color": "#062016",
+    "description": "JualinAja POS — kasir modern untuk toko, kafe, dan UMKM.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

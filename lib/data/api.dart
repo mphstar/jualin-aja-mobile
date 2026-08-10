@@ -13,6 +13,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'config.dart';
+import 'backdoor.dart';
 import 'repositori.dart' show GagalMuat;
 
 const _kunciToken = 'auth_token';
@@ -123,6 +124,13 @@ List<dynamic> _prosesDaftar(http.Response respons) {
 
 final _timeout = const Duration(seconds: timeoutDetik);
 
+/// Gagal terhubung ke server: dicatat ke log backdoor (berguna saat basis API
+/// baru saja diganti) lalu diterjemahkan ke [GagalMuat] untuk layar.
+Never _gagalJaringan(Object error) {
+  catatError('api', error);
+  throw const GagalMuat('Tidak bisa terhubung ke server.');
+}
+
 // ---------------------------------------------------------------------------
 // Metode HTTP publik
 // ---------------------------------------------------------------------------
@@ -137,10 +145,10 @@ Future<Map<String, dynamic>> get(
         .get(_uri(path, query), headers: _headers)
         .timeout(_timeout);
     return _proses(respons);
-  } on SocketException {
-    throw const GagalMuat('Tidak bisa terhubung ke server.');
-  } on http.ClientException {
-    throw const GagalMuat('Tidak bisa terhubung ke server.');
+  } on SocketException catch (e) {
+    _gagalJaringan(e);
+  } on http.ClientException catch (e) {
+    _gagalJaringan(e);
   }
 }
 
@@ -154,10 +162,10 @@ Future<List<dynamic>> getDaftar(
         .get(_uri(path, query), headers: _headers)
         .timeout(_timeout);
     return _prosesDaftar(respons);
-  } on SocketException {
-    throw const GagalMuat('Tidak bisa terhubung ke server.');
-  } on http.ClientException {
-    throw const GagalMuat('Tidak bisa terhubung ke server.');
+  } on SocketException catch (e) {
+    _gagalJaringan(e);
+  } on http.ClientException catch (e) {
+    _gagalJaringan(e);
   }
 }
 
@@ -171,10 +179,10 @@ Future<Map<String, dynamic>> post(
         .post(_uri(path), headers: _headers, body: jsonEncode(body ?? {}))
         .timeout(_timeout);
     return _proses(respons);
-  } on SocketException {
-    throw const GagalMuat('Tidak bisa terhubung ke server.');
-  } on http.ClientException {
-    throw const GagalMuat('Tidak bisa terhubung ke server.');
+  } on SocketException catch (e) {
+    _gagalJaringan(e);
+  } on http.ClientException catch (e) {
+    _gagalJaringan(e);
   }
 }
 
@@ -188,10 +196,10 @@ Future<Map<String, dynamic>> put(
         .put(_uri(path), headers: _headers, body: jsonEncode(body ?? {}))
         .timeout(_timeout);
     return _proses(respons);
-  } on SocketException {
-    throw const GagalMuat('Tidak bisa terhubung ke server.');
-  } on http.ClientException {
-    throw const GagalMuat('Tidak bisa terhubung ke server.');
+  } on SocketException catch (e) {
+    _gagalJaringan(e);
+  } on http.ClientException catch (e) {
+    _gagalJaringan(e);
   }
 }
 
@@ -205,10 +213,10 @@ Future<Map<String, dynamic>> patch(
         .patch(_uri(path), headers: _headers, body: jsonEncode(body ?? {}))
         .timeout(_timeout);
     return _proses(respons);
-  } on SocketException {
-    throw const GagalMuat('Tidak bisa terhubung ke server.');
-  } on http.ClientException {
-    throw const GagalMuat('Tidak bisa terhubung ke server.');
+  } on SocketException catch (e) {
+    _gagalJaringan(e);
+  } on http.ClientException catch (e) {
+    _gagalJaringan(e);
   }
 }
 
@@ -225,10 +233,10 @@ Future<void> delete(String path) async {
     if (respons.statusCode >= 300) {
       _proses(respons);
     }
-  } on SocketException {
-    throw const GagalMuat('Tidak bisa terhubung ke server.');
-  } on http.ClientException {
-    throw const GagalMuat('Tidak bisa terhubung ke server.');
+  } on SocketException catch (e) {
+    _gagalJaringan(e);
+  } on http.ClientException catch (e) {
+    _gagalJaringan(e);
   }
 }
 
@@ -263,10 +271,10 @@ Future<({Uint8List bytes, String? filename})> getBytes(
     }
 
     return (bytes: respons.bodyBytes, filename: filename);
-  } on SocketException {
-    throw const GagalMuat('Tidak bisa terhubung ke server.');
-  } on http.ClientException {
-    throw const GagalMuat('Tidak bisa terhubung ke server.');
+  } on SocketException catch (e) {
+    _gagalJaringan(e);
+  } on http.ClientException catch (e) {
+    _gagalJaringan(e);
   }
 }
 
@@ -297,9 +305,9 @@ Future<Map<String, dynamic>> uploadFile(
     final streamedResponse = await request.send().timeout(_timeout);
     final response = await http.Response.fromStream(streamedResponse);
     return _proses(response);
-  } on SocketException {
-    throw const GagalMuat('Tidak bisa terhubung ke server.');
-  } on http.ClientException {
-    throw const GagalMuat('Tidak bisa terhubung ke server.');
+  } on SocketException catch (e) {
+    _gagalJaringan(e);
+  } on http.ClientException catch (e) {
+    _gagalJaringan(e);
   }
 }

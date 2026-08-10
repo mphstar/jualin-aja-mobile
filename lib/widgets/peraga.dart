@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../data/backdoor.dart';
+import '../screens/backdoor_screen.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 
@@ -19,10 +21,11 @@ import '../theme/tokens.dart';
 // Tanda merek
 // ---------------------------------------------------------------------------
 
-/// Petak tinta berikon toko, dengan wordmark opsional.
+/// Logo resmi dari `assets/logo.png`, dengan wordmark opsional.
 ///
-/// Satu bentuk yang sama dipakai di kepala rail dan di layar masuk, jadi
-/// perpindahan dari luar ke dalam aplikasi membawa satu benda yang dikenali.
+/// Satu bentuk yang sama dipakai di kepala rail, layar masuk, dan layar daftar,
+/// jadi perpindahan dari luar ke dalam aplikasi membawa satu benda yang
+/// dikenali.
 class TandaMerek extends StatelessWidget {
   const TandaMerek({super.key, this.ukuran = 44, this.berlabel = false});
 
@@ -31,36 +34,114 @@ class TandaMerek extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final a = context.aksen;
-    final petak = Container(
+    final logo = Image.asset(
+      'assets/logo.png',
       width: ukuran,
       height: ukuran,
-      decoration: BoxDecoration(
-        color: a.fokus,
-        borderRadius: BorderRadius.circular(Lengkung.kontrol),
-      ),
-      alignment: Alignment.center,
-      child: Icon(
-        Icons.storefront_outlined,
-        size: ukuran * 0.5,
-        color: a.atasFokus,
-      ),
+      fit: BoxFit.contain,
     );
 
-    if (!berlabel) return petak;
+    if (!berlabel) return logo;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        petak,
+        logo,
         const SizedBox(width: Jarak.xs2),
         Flexible(
           child: Text(
-            'Kasir POS',
+            'JualinAja',
             style: context.teks.titleSmall,
             overflow: TextOverflow.ellipsis,
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Logo yang boleh diketuk sepuluh kali untuk membuka backdoor debug.
+///
+/// Dipakai di layar pra-mulai (onboarding, masuk, daftar) dan kepala aplikasi.
+/// Ketukan tidak harus berurutan; total sepuluh ketukan sudah cukup. Setelah
+/// itu diminta kata sandi ([kataSandiBackdoor]) sebelum layar backdoor terbuka.
+class TandaMerekBackdoor extends StatefulWidget {
+  const TandaMerekBackdoor({super.key, this.ukuran = 44, this.berlabel = false});
+
+  final double ukuran;
+  final bool berlabel;
+
+  @override
+  State<TandaMerekBackdoor> createState() => _TandaMerekBackdoorState();
+}
+
+class _TandaMerekBackdoorState extends State<TandaMerekBackdoor> {
+  int _ketukan = 0;
+
+  void _ketuk() {
+    _ketukan++;
+    if (_ketukan >= 10) {
+      _ketukan = 0;
+      _bukaBackdoor();
+    }
+  }
+
+  Future<void> _bukaBackdoor() async {
+    final sandi = await _mintaKataSandi();
+    if (sandi == null || !mounted) return;
+
+    if (sandi != kataSandiBackdoor) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kata sandi backdoor salah.')),
+      );
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const BackdoorScreen()),
+    );
+  }
+
+  Future<String?> _mintaKataSandi() {
+    final pengendali = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Backdoor debug'),
+        content: TextField(
+          controller: pengendali,
+          obscureText: true,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Kata sandi',
+            hintText: 'Masukkan kata sandi backdoor',
+          ),
+          onSubmitted: (v) => Navigator.of(ctx).pop(v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(pengendali.text),
+            child: const Text('Masuk'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _ketuk,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        // Area ketuk sedikit diluaskan supaya sepuluh ketukan cepat mudah
+        // dikenali, tanpa mengubah posisi logo di layar.
+        padding: const EdgeInsets.symmetric(horizontal: Jarak.xs2),
+        child: TandaMerek(ukuran: widget.ukuran, berlabel: widget.berlabel),
+      ),
     );
   }
 }

@@ -7,8 +7,13 @@
  * PRD: §1 empat tugas mobile · §4.1–4.3 aturan langganan · §8 empat keadaan
  * pre-emit critique: P5 H5 E5 S5 R5 V4
  */
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import 'data/api.dart';
+import 'data/backdoor.dart';
+import 'data/config.dart';
 import 'data/repositori.dart';
 import 'screens/akun_screen.dart';
 import 'screens/beranda_screen.dart';
@@ -20,9 +25,26 @@ import 'screens/produk_screen.dart';
 import 'screens/resep_screen.dart';
 import 'screens/sambutan_screen.dart';
 import 'theme/app_theme.dart';
+import 'theme/tokens.dart';
 import 'widgets/app_shell.dart';
 
-void main() => runApp(const AplikasiPos());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Future.wait([muatToken(), muatBasisApi(), muatBackdoor()]);
+
+  // Error runtime selalu direkam ke log backdoor, lalu tetap diteruskan ke
+  // penanganan bawaan Flutter supaya perilaku aplikasi tidak berubah.
+  FlutterError.onError = (details) {
+    catatError('flutter', details.exception, details.stack);
+    FlutterError.presentError(details);
+  };
+
+  runZonedGuarded(
+    () => runApp(const AplikasiPos()),
+    (error, stack) => catatError('async', error, stack),
+  );
+}
 
 class AplikasiPos extends StatefulWidget {
   const AplikasiPos({super.key});
@@ -72,12 +94,42 @@ class _AplikasiPosState extends State<AplikasiPos> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Kasir POS',
+      title: 'JualinAja',
       debugShowCheckedModeBanner: false,
       navigatorKey: _kunciNavigator,
       theme: TemaAplikasi.terang(),
       darkTheme: TemaAplikasi.gelap(),
       themeMode: _mode,
+      // Bilah penanda mode debug dipasang di bawah tema, jadi warnanya bisa
+      // memakai `context.warna` dan selalu tampil di atas layar mana pun.
+      builder: (context, anak) => ValueListenableBuilder<bool>(
+        valueListenable: modeDebug,
+        builder: (context, debug, _) => debug
+            ? Column(
+                children: [
+                  Container(
+                    width: double.infinity,
+                    color: context.warna.error,
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 3,
+                      horizontal: Jarak.xs,
+                    ),
+                    child: Text(
+                      'MODE DEBUG · BACKDOOR',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: context.warna.onError,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  Expanded(child: anak!),
+                ],
+              )
+            : anak!,
+      ),
       home: switch (_tahap) {
         _Tahap.memuat => const Scaffold(
           body: Center(child: CircularProgressIndicator()),

@@ -62,6 +62,12 @@ class _SambutanScreenState extends State<SambutanScreen> {
             constraints: const BoxConstraints(maxWidth: 460),
             child: Column(
               children: [
+                // Logo boleh diketuk berkali-kali: sepuluh ketukan membuka
+                // backdoor debug tanpa mengubah tampilan apa pun.
+                const Padding(
+                  padding: EdgeInsets.only(top: Jarak.md),
+                  child: TandaMerekBackdoor(ukuran: 44, berlabel: true),
+                ),
                 Expanded(
                   child: PageView.builder(
                     controller: _pengendali,

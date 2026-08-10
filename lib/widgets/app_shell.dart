@@ -148,7 +148,7 @@ class _MerekRail extends StatelessWidget {
         melebar ? Jarak.sm : 0,
         Jarak.md,
       ),
-      child: TandaMerek(ukuran: 40, berlabel: melebar),
+      child: TandaMerekBackdoor(ukuran: 40, berlabel: melebar),
     );
   }
 }
