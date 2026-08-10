@@ -11,6 +11,7 @@ import '../widgets/blok_foto.dart';
 import '../widgets/chip_kategori.dart';
 import '../widgets/keadaan.dart';
 import '../widgets/lembar_buka_kasir.dart';
+import '../widgets/modal_fitur_terkunci.dart';
 import '../widgets/rangka.dart';
 import '../widgets/tombol_pil.dart';
 import 'bayar_screen.dart';
@@ -110,6 +111,17 @@ class _KasirScreenState extends State<KasirScreen> {
   Future<void> _bayar() async {
     final item = _isiKeranjang;
     if (item.isEmpty) return;
+
+    final langganan = await Repositori.langganan();
+    if (!mounted) return;
+
+    if (!langganan.bolehTransaksi) {
+      ModalFiturTerkunci.tampilkan(
+        context,
+        jenis: JenisFiturTerkunci.transaksi,
+      );
+      return;
+    }
 
     var sesi = Repositori.sesiKasirAktif.value;
     if (sesi == null) {

@@ -131,6 +131,17 @@ class _BayarScreenState extends State<BayarScreen> {
 
   Future<void> _simpan() async {
     if (!_bolehSimpan) return;
+    final langganan = await Repositori.langganan();
+    if (!mounted) return;
+
+    if (!langganan.bolehTransaksi) {
+      ModalFiturTerkunci.tampilkan(
+        context,
+        jenis: JenisFiturTerkunci.transaksi,
+      );
+      return;
+    }
+
     setState(() {
       _menyimpan = true;
       _galat = null;
@@ -158,6 +169,17 @@ class _BayarScreenState extends State<BayarScreen> {
   }
 
   Future<void> _bayarNanti() async {
+    final langganan = await Repositori.langganan();
+    if (!mounted) return;
+
+    if (!langganan.bolehTransaksi) {
+      ModalFiturTerkunci.tampilkan(
+        context,
+        jenis: JenisFiturTerkunci.transaksi,
+      );
+      return;
+    }
+
     final pelanggan = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
