@@ -6,7 +6,6 @@ import 'syarat_ketentuan_screen.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../widgets/ikon_kotak.dart';
-import '../widgets/ilustrasi.dart';
 import '../widgets/kartu.dart';
 
 /// Halaman Tentang Aplikasi (App Info, Version, Terms & Privacy).
@@ -27,7 +26,12 @@ class TentangScreen extends StatelessWidget {
             children: [
               const SizedBox(height: Jarak.sm),
               // Branding / Logo Aplikasi
-              const Ilustrasi(gambar: GambarIlustrasi.etalase, lebarMaks: 180),
+              Image.asset(
+                'assets/logo.png',
+                width: 140,
+                height: 140,
+                fit: BoxFit.contain,
+              ),
               const SizedBox(height: Jarak.sm),
               Text(
                 'JualinAja POS',
