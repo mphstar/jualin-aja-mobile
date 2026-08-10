@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:mobile/data/api.dart' as api;
 import 'package:mobile/data/contoh.dart';
 import 'package:mobile/data/model.dart';
 import 'package:mobile/data/repositori.dart';
@@ -47,7 +49,9 @@ Future<void> masuk(WidgetTester tester) async {
   await ketuk(tester, find.widgetWithText(FilledButton, 'Lanjut'));
   await ketuk(tester, find.text('Stok sering tidak cocok'));
   await ketuk(tester, find.widgetWithText(FilledButton, 'Selesai'));
-  await ketuk(tester, find.widgetWithText(FilledButton, 'Masuk'));
+  final tombolDaftar = find.widgetWithText(FilledButton, 'Daftar Sekarang');
+  await tester.ensureVisible(tombolDaftar);
+  await ketuk(tester, tombolDaftar);
 }
 
 /// Mengetuk tujuan navigasi lewat bilah bawah — bukan lewat `find.text` polos,
@@ -66,6 +70,13 @@ void ukuran(WidgetTester tester, double lebar, [double tinggi = 900]) {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    await api.hapusToken();
+  });
+
   tearDown(() {
     // Keduanya global. Sakelar peragaan mengubah lapisan data, dan pembayaran
     // demo benar-benar memperpanjang langganan — tanpa pengembalian ini, tes
@@ -621,10 +632,35 @@ void main() {
       );
     });
 
-    test('resep terkunci hanya saat kedaluwarsa atau nonaktif (PRD §4.3)', () {
-      expect(buat(sisa: 3).bolehUnduhResep, isTrue);
-      expect(buat(sisa: -1).bolehUnduhResep, isFalse);
-      expect(buat(sisa: 300, tangguh: true).bolehUnduhResep, isFalse);
+    test('resep terkunci untuk gratis dan trial, hanya terbuka untuk paket langganan', () {
+      expect(buat(sisa: 10, d: DurasiPaket.bulanan).bolehUnduhResep, isTrue);
+      expect(buat(sisa: 3, d: DurasiPaket.bulanan).bolehUnduhResep, isTrue); // akanBerakhir (Langganan)
+      expect(buat(sisa: 10, d: DurasiPaket.ujiCoba).bolehUnduhResep, isFalse); // Trial
+      expect(buat(sisa: -1).bolehUnduhResep, isFalse); // Kedaluwarsa (Gratis)
+      expect(buat(sisa: 300, tangguh: true).bolehUnduhResep, isFalse); // Nonaktif (Gratis)
+    });
+
+    test('voucher terbuka untuk trial dan langganan, terkunci untuk gratis', () {
+      expect(buat(sisa: 10, d: DurasiPaket.bulanan).bolehAksesVoucher, isTrue);
+      expect(buat(sisa: 10, d: DurasiPaket.ujiCoba).bolehAksesVoucher, isTrue);
+      expect(buat(sisa: -1).bolehAksesVoucher, isFalse);
+      expect(buat(sisa: 300, tangguh: true).bolehAksesVoucher, isFalse);
+    });
+
+    test('batas produk gratis 20, trial dan langganan unlimited', () {
+      final gratis = buat(sisa: -1);
+      final trial = buat(sisa: 10, d: DurasiPaket.ujiCoba);
+      final langganan = buat(sisa: 10, d: DurasiPaket.bulanan);
+
+      expect(gratis.batasMaksimalProduk, 20);
+      expect(gratis.bolehTambahProduk(19), isTrue);
+      expect(gratis.bolehTambahProduk(20), isFalse);
+
+      expect(trial.batasMaksimalProduk, isNull);
+      expect(trial.bolehTambahProduk(100), isTrue);
+
+      expect(langganan.batasMaksimalProduk, isNull);
+      expect(langganan.bolehTambahProduk(500), isTrue);
     });
   });
 

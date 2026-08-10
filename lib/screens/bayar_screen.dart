@@ -10,6 +10,7 @@ import '../widgets/baris_pesanan.dart';
 import '../widgets/isian_uang.dart';
 import '../widgets/kartu.dart';
 import '../widgets/lembar_diskon.dart';
+import '../widgets/modal_fitur_terkunci.dart';
 import '../widgets/tombol_pil.dart';
 
 class HasilKasir {
@@ -103,6 +104,17 @@ class _BayarScreenState extends State<BayarScreen> {
   ).pop(HasilKasir(selesai: false, item: List.of(_item)));
 
   Future<void> _bukaDiskon() async {
+    final langganan = await Repositori.langganan();
+    if (!mounted) return;
+
+    if (!langganan.bolehAksesVoucher) {
+      ModalFiturTerkunci.tampilkan(
+        context,
+        jenis: JenisFiturTerkunci.voucher,
+      );
+      return;
+    }
+
     final hasil = await LembarDiskon.tampilkan(
       context,
       subtotal: _subtotal,

@@ -304,10 +304,13 @@ class _DaftarScreenState extends State<DaftarScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(
-                'Sudah punya akun? ',
-                style: context.teks.bodyMedium?.copyWith(
-                  color: context.warna.onSurfaceVariant,
+              Flexible(
+                child: Text(
+                  'Sudah punya akun? ',
+                  style: context.teks.bodyMedium?.copyWith(
+                    color: context.warna.onSurfaceVariant,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               GestureDetector(

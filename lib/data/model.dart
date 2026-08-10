@@ -465,6 +465,49 @@ DateTime tambahBulan(DateTime d, int bulan) {
 
 enum StatusLangganan { ujiCoba, aktif, akanBerakhir, kedaluwarsa, nonaktif }
 
+/// 3 versi/tier paket langganan (Gratis, Trial, Langganan).
+enum VersiLangganan { gratis, trial, langganan }
+
+extension LabelVersi on VersiLangganan {
+  String get label => switch (this) {
+    VersiLangganan.gratis => 'Gratis',
+    VersiLangganan.trial => 'Trial (Uji Coba)',
+    VersiLangganan.langganan => 'Langganan (Aktif)',
+  };
+}
+
+/// Sumber kebenaran TUNGGAL untuk hak akses & batasan fitur di Flutter mobile.
+abstract final class FiturLangganan {
+  static const int batasProdukGratis = 20;
+
+  static VersiLangganan versiDariStatus(StatusLangganan status) {
+    return switch (status) {
+      StatusLangganan.ujiCoba => VersiLangganan.trial,
+      StatusLangganan.aktif || StatusLangganan.akanBerakhir => VersiLangganan.langganan,
+      StatusLangganan.kedaluwarsa || StatusLangganan.nonaktif => VersiLangganan.gratis,
+    };
+  }
+
+  static bool bolehAksesResep(VersiLangganan versi) =>
+      versi == VersiLangganan.langganan;
+
+  static bool bolehAksesVoucher(VersiLangganan versi) =>
+      versi != VersiLangganan.gratis;
+
+  static int? batasMaksimalProduk(VersiLangganan versi) =>
+      versi == VersiLangganan.gratis ? batasProdukGratis : null;
+
+  static bool bolehTambahProduk(
+    VersiLangganan versi,
+    int jumlahProdukSaatIni, {
+    int tambahan = 1,
+  }) {
+    final batas = batasMaksimalProduk(versi);
+    if (batas == null) return true;
+    return (jumlahProdukSaatIni + tambahan) <= batas;
+  }
+}
+
 class Langganan {
   const Langganan({
     required this.durasi,
@@ -503,11 +546,25 @@ class Langganan {
     return StatusLangganan.aktif;
   }
 
-  /// PRD §4.3 — seluruh ebook terbit terbuka untuk langganan yang masih
-  /// berjalan. Tidak ada pemberian akses per-ebook.
-  bool get bolehUnduhResep =>
-      status != StatusLangganan.kedaluwarsa &&
-      status != StatusLangganan.nonaktif;
+  VersiLangganan get versi => FiturLangganan.versiDariStatus(status);
+
+  /// Katalog resep ebook HANYA terbuka untuk paket Langganan (Paid Active).
+  /// Trial dan Gratis tidak bisa mengakses resep.
+  bool get bolehUnduhResep => FiturLangganan.bolehAksesResep(versi);
+
+  /// Voucher/diskon transaksi terbuka untuk Trial dan Langganan.
+  bool get bolehAksesVoucher => FiturLangganan.bolehAksesVoucher(versi);
+
+  /// Batas produk versi Gratis = 20, Trial/Langganan = null (unlimited).
+  int? get batasMaksimalProduk => FiturLangganan.batasMaksimalProduk(versi);
+
+  /// Apakah diperbolehkan menambah produk baru.
+  bool bolehTambahProduk(int jumlahProdukSaatIni, {int tambahan = 1}) =>
+      FiturLangganan.bolehTambahProduk(
+        versi,
+        jumlahProdukSaatIni,
+        tambahan: tambahan,
+      );
 
   /// PRD §4.4 — **sisa hari tidak hangus.**
   ///

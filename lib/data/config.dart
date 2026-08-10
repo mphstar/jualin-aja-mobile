@@ -11,7 +11,7 @@ library;
 /// - Perangkat fisik di jaringan lokal: `http://<IP-komputer>:8000`
 const basisApi = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'http://127.0.0.1:8000',
+  defaultValue: 'https://0568-2a09-bac5-55fd-1d0f-00-2e5-26.ngrok-free.app',
 );
 
 /// Prefiks rute API mobile.

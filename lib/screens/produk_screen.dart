@@ -12,6 +12,7 @@ import '../widgets/blok_foto.dart';
 import '../widgets/chip_kategori.dart';
 import '../widgets/kartu.dart';
 import '../widgets/keadaan.dart';
+import '../widgets/modal_fitur_terkunci.dart';
 import '../widgets/rangka.dart';
 import 'dialog_impor_produk.dart';
 import 'form_produk_screen.dart';
@@ -38,6 +39,20 @@ class ProdukScreen extends StatefulWidget {
     List<Kategori>? kategori,
     Produk? produk,
   }) async {
+    if (produk == null) {
+      final langganan = await Repositori.langganan();
+      final daftarProduk = await Repositori.produk();
+      if (!context.mounted) return;
+
+      if (!langganan.bolehTambahProduk(daftarProduk.length)) {
+        ModalFiturTerkunci.tampilkan(
+          context,
+          jenis: JenisFiturTerkunci.batasProduk,
+        );
+        return;
+      }
+    }
+
     // Keadaan kosong memanggil ini sebelum daftar kategori sempat dimuat —
     // di situ ia diambil di sini, bukan dititipkan lewat konstanta dari
     // `contoh.dart` yang justru melanggar kontrak lapisan data.

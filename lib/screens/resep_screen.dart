@@ -9,6 +9,7 @@ import '../widgets/bingkai.dart';
 import '../widgets/sampul_ebook.dart';
 import '../widgets/kartu.dart';
 import '../widgets/keadaan.dart';
+import '../widgets/modal_fitur_terkunci.dart';
 import '../widgets/rangka.dart';
 
 /// Katalog ebook resep.
@@ -83,13 +84,16 @@ class ResepScreen extends StatelessWidget {
                 padding: EdgeInsets.symmetric(horizontal: padding.left),
                 sliver: SliverToBoxAdapter(
                   child: Keadaan(
-                    ikon: Icons.lock_outline,
-                    judul: 'Katalog terkunci',
+                    ikon: Icons.lock_rounded,
+                    judul: 'Katalog Resep Rahasia Terkunci',
                     keterangan:
-                        'Ebook resep hanya bisa diunduh selama langganan '
-                        'aktif. Riwayat dan laporan tetap bisa Anda buka.',
-                    labelAksi: 'Lihat langganan',
-                    onAksi: onKeAkun,
+                        'Ebook resep makanan & minuman eksklusif hanya tersedia pada paket Langganan (Berbayar). '
+                        'Akun Trial dan Gratis dapat memperpanjang paket untuk membuka seluruh katalog.',
+                    labelAksi: 'Buka Akses Paket Langganan',
+                    onAksi: () => ModalFiturTerkunci.tampilkan(
+                      context,
+                      jenis: JenisFiturTerkunci.resep,
+                    ),
                   ),
                 ),
               )

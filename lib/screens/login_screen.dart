@@ -226,10 +226,13 @@ class _LoginScreenState extends State<LoginScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  'Belum punya akun? ',
-                  style: context.teks.bodyMedium?.copyWith(
-                    color: context.warna.onSurfaceVariant,
+                Flexible(
+                  child: Text(
+                    'Belum punya akun? ',
+                    style: context.teks.bodyMedium?.copyWith(
+                      color: context.warna.onSurfaceVariant,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 GestureDetector(
