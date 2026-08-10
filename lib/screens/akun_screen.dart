@@ -11,9 +11,11 @@ import '../widgets/ikon_kotak.dart';
 import '../widgets/kartu.dart';
 import '../widgets/lencana.dart';
 import '../widgets/rangka.dart';
+import 'bantuan_screen.dart';
 import 'kategori_screen.dart';
 import 'profil_screen.dart';
 import 'struk_screen.dart';
+import 'tentang_screen.dart';
 import 'toko_screen.dart';
 import 'perpanjang_screen.dart';
 import 'riwayat_bayar_screen.dart';
@@ -165,13 +167,21 @@ class AkunScreen extends StatelessWidget {
               ikon: Icons.help_outline,
               judul: 'Bantuan',
               keterangan: 'Panduan dan kontak dukungan',
-              onTekan: () => _menyusul(context, 'Bantuan'),
+              onTekan: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const BantuanScreen(),
+                ),
+              ),
             ),
             _BarisMenu(
               ikon: Icons.info_outline,
               judul: 'Tentang aplikasi',
               keterangan: 'Versi 1.0.0',
-              onTekan: () => _menyusul(context, 'Tentang aplikasi'),
+              onTekan: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const TentangScreen(),
+                ),
+              ),
             ),
           ],
         ),
@@ -213,6 +223,7 @@ class AkunScreen extends StatelessWidget {
     );
   }
 
+  // ignore: unused_element
   static void _menyusul(BuildContext context, String apa) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
