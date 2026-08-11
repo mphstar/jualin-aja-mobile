@@ -180,31 +180,13 @@ class _KasirScreenState extends State<KasirScreen> {
   }
 
   Future<void> _tanyaKosongkan() async {
-    // Mengosongkan keranjang membuang pekerjaan yang tidak bisa dikembalikan,
-    // dan tombolnya duduk tepat di sebelah tombol tutup. Satu ketukan salah
-    // tidak boleh menghapus pesanan yang sudah setengah jalan.
-    final ya = await showDialog<bool>(
+    final ya = await showModalBottomSheet<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Kosongkan keranjang?'),
-        content: Text(
-          '$_jumlahItem item akan dihapus. Tindakan ini tidak bisa dibatalkan.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Batal'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: FilledButton.styleFrom(
-              backgroundColor: context.aksen.bahaya,
-              foregroundColor: context.warna.onError,
-              minimumSize: const Size(0, 44),
-            ),
-            child: const Text('Kosongkan'),
-          ),
-        ],
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _ModalKosongkanKeranjang(
+        jumlahItem: _jumlahItem,
+        total: _total,
       ),
     );
     if ((ya ?? false) && mounted) _kosongkan();
@@ -214,7 +196,6 @@ class _KasirScreenState extends State<KasirScreen> {
   Widget build(BuildContext context) {
     final lebar = MediaQuery.sizeOf(context).width;
     final duaPanel = lebar >= Ambang.ringkas;
-    final ringkas = lebar < 380;
 
     return Scaffold(
       appBar: AppBar(
@@ -253,8 +234,8 @@ class _KasirScreenState extends State<KasirScreen> {
         ),
         actions: [
           if (_jumlahItem > 0) ...[
-            _TombolKosongkan(ringkas: ringkas, onTekan: _tanyaKosongkan),
-            const SizedBox(width: Jarak.xs3),
+            _TombolKosongkan(onTekan: _tanyaKosongkan),
+            const SizedBox(width: Jarak.xs2),
           ],
           if (!duaPanel)
             Padding(
@@ -587,14 +568,11 @@ class _KartuProduk extends StatelessWidget {
                   child: Stack(
                     children: [
                       Positioned.fill(child: BlokFoto(url: produk.gambarUrl)),
-                      if (produk.menipis || habis)
+                      if (produk.lacakStok)
                         Positioned(
                           left: 6,
                           top: 6,
-                          child: _Pil(
-                            teks: habis ? 'Habis' : 'Sisa ${produk.stok}',
-                            bahaya: habis,
-                          ),
+                          child: _PilStok(produk: produk),
                         ),
                       if (terpilih)
                         Positioned(
@@ -615,6 +593,25 @@ class _KartuProduk extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
+                if (produk.lacakStok) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    produk.habis
+                        ? 'Stok habis'
+                        : 'Stok: ${produk.stok} ${produk.satuan}',
+                    style: context.teks.labelSmall?.copyWith(
+                      color: produk.habis
+                          ? a.bahaya
+                          : (produk.menipis
+                              ? a.peringatan
+                              : context.warna.onSurfaceVariant),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
                 const SizedBox(height: Jarak.xs3),
                 Row(
                   children: [
@@ -706,10 +703,151 @@ class _LencanaJumlah extends StatelessWidget {
 /// bilah atas selama keranjang terisi — merah pekat di sana akan berteriak
 /// sepanjang transaksi, dan yang berteriak terus-menerus akhirnya tidak
 /// didengar sama sekali.
-class _TombolKosongkan extends StatelessWidget {
-  const _TombolKosongkan({required this.ringkas, required this.onTekan});
+class _ModalKosongkanKeranjang extends StatelessWidget {
+  const _ModalKosongkanKeranjang({
+    required this.jumlahItem,
+    required this.total,
+  });
 
-  final bool ringkas;
+  final int jumlahItem;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = context.aksen;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: context.warna.surface,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(Lengkung.panel),
+        ),
+      ),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.paddingOf(context).bottom + Jarak.md,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: context.warna.outline.withAlpha(100),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Container(
+            margin: const EdgeInsets.all(Jarak.md),
+            padding: const EdgeInsets.all(Jarak.md),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  a.bahayaLembut,
+                  context.warna.surfaceContainerHigh,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(Lengkung.panel),
+              border: Border.all(color: a.bahaya.withAlpha(60)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: a.bahaya,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: a.bahaya.withAlpha(80),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.delete_sweep_rounded,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: Jarak.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Kosongkan Keranjang?',
+                        style: context.teks.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: a.bahaya,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '$jumlahItem item (${rupiah(total)}) akan dihapus dari daftar pesanan.',
+                        style: context.teks.bodySmall?.copyWith(
+                          color: context.warna.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: Jarak.md),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 48,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      style: OutlinedButton.styleFrom(
+                        shape: const StadiumBorder(),
+                        side: BorderSide(color: context.warna.outline),
+                      ),
+                      child: const Text('Batal'),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: Jarak.xs),
+                Expanded(
+                  child: SizedBox(
+                    height: 48,
+                    child: FilledButton.icon(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: a.bahaya,
+                        foregroundColor: Colors.white,
+                        shape: const StadiumBorder(),
+                      ),
+                      icon: const Icon(Icons.delete_forever_rounded, size: 18),
+                      label: const Text('Ya, Kosongkan'),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TombolKosongkan extends StatelessWidget {
+  const _TombolKosongkan({required this.onTekan});
+
   final VoidCallback onTekan;
 
   @override
@@ -718,41 +856,24 @@ class _TombolKosongkan extends StatelessWidget {
 
     return Tooltip(
       message: 'Kosongkan keranjang',
-      child: Semantics(
-        button: true,
-        label: 'Kosongkan keranjang',
-        child: Material(
-          color: a.bahayaLembut,
-          borderRadius: BorderRadius.circular(Lengkung.bulat),
-          child: InkWell(
-            onTap: onTekan,
-            borderRadius: BorderRadius.circular(Lengkung.bulat),
-            child: Container(
-              height: 40,
-              padding: EdgeInsets.symmetric(
-                horizontal: ringkas ? Jarak.xs2 : Jarak.xs,
-              ),
-              alignment: Alignment.center,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.remove_shopping_cart_outlined,
-                    size: 19,
-                    color: a.bahaya,
-                  ),
-                  if (!ringkas) ...[
-                    const SizedBox(width: 6),
-                    Text(
-                      'Kosongkan',
-                      style: context.teks.labelLarge?.copyWith(
-                        color: a.bahaya,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+      child: Material(
+        color: a.bahaya.withAlpha(20),
+        shape: const CircleBorder(),
+        child: InkWell(
+          onTap: onTekan,
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: a.bahaya.withAlpha(70)),
+            ),
+            alignment: Alignment.center,
+            child: Icon(
+              Icons.delete_sweep_rounded,
+              size: 20,
+              color: a.bahaya,
             ),
           ),
         ),
@@ -761,12 +882,6 @@ class _TombolKosongkan extends StatelessWidget {
   }
 }
 
-/// Tombol keranjang di bilah atas.
-///
-/// Dua wujud dari satu tombol, bukan ikon berlencana: kosong ia garis samar
-/// yang mati, terisi ia pil tinta pekat berisi angka. Lencana Material yang
-/// menempel di pojok ikon mudah terlewat pada layar kecil — dan jumlah item
-/// adalah satu-satunya alasan tombol ini dilirik saat tangan sedang penuh.
 class _TombolKeranjang extends StatelessWidget {
   const _TombolKeranjang({required this.jumlah, required this.onTekan});
 
@@ -780,47 +895,57 @@ class _TombolKeranjang extends StatelessWidget {
 
     return Tooltip(
       message: terisi ? 'Lihat keranjang · $jumlah item' : 'Keranjang kosong',
-      child: Semantics(
-        button: true,
-        enabled: onTekan != null,
-        child: Material(
-          color: terisi ? a.fokus : Colors.transparent,
-          borderRadius: BorderRadius.circular(Lengkung.bulat),
-          child: InkWell(
-            onTap: onTekan,
-            borderRadius: BorderRadius.circular(Lengkung.bulat),
-            child: Container(
-              height: 40,
-              padding: const EdgeInsets.symmetric(horizontal: Jarak.xs),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(Lengkung.bulat),
-                border: Border.all(
-                  color: terisi ? a.fokus : context.warna.outline,
-                ),
+      child: Material(
+        color: terisi ? context.warna.primaryContainer : context.warna.surfaceContainerHighest,
+        shape: const CircleBorder(),
+        child: InkWell(
+          onTap: onTekan,
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: terisi ? context.warna.primary.withAlpha(80) : context.warna.outline,
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.shopping_bag_outlined,
-                    size: 20,
-                    color: terisi
-                        ? a.atasFokus
-                        : context.warna.onSurfaceVariant,
-                  ),
-                  if (terisi) ...[
-                    const SizedBox(width: 6),
-                    Text(
-                      '$jumlah',
-                      style: context.teks.labelLarge?.copyWith(
-                        color: a.atasFokus,
-                        fontWeight: FontWeight.w800,
-                        fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Icon(
+                  Icons.shopping_cart_rounded,
+                  size: 20,
+                  color: terisi
+                      ? context.warna.primary
+                      : context.warna.onSurfaceVariant,
+                ),
+                if (terisi)
+                  Positioned(
+                    top: 2,
+                    right: 2,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: a.sukses,
+                        shape: BoxShape.circle,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        '$jumlah',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                  ],
-                ],
-              ),
+                  ),
+              ],
             ),
           ),
         ),
@@ -829,25 +954,53 @@ class _TombolKeranjang extends StatelessWidget {
   }
 }
 
-class _Pil extends StatelessWidget {
-  const _Pil({required this.teks, required this.bahaya});
+class _PilStok extends StatelessWidget {
+  const _PilStok({required this.produk});
 
-  final String teks;
-  final bool bahaya;
+  final Produk produk;
 
   @override
   Widget build(BuildContext context) {
     final a = context.aksen;
+    final habis = produk.habis;
+    final menipis = produk.menipis;
+
+    final Color color;
+    final Color textColor;
+    final String text;
+
+    if (habis) {
+      color = a.bahayaLembut;
+      textColor = a.bahaya;
+      text = 'Habis';
+    } else if (menipis) {
+      color = a.peringatanLembut;
+      textColor = a.peringatan;
+      text = 'Sisa ${produk.stok}';
+    } else {
+      color = context.warna.surfaceContainerHighest.withAlpha(220);
+      textColor = context.warna.onSurfaceVariant;
+      text = 'Stok ${produk.stok}';
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
-        color: bahaya ? a.bahayaLembut : a.peringatanLembut,
+        color: color,
         borderRadius: BorderRadius.circular(Lengkung.bulat),
+        border: Border.all(
+          color: habis
+              ? a.bahaya.withAlpha(80)
+              : (menipis
+                  ? a.peringatan.withAlpha(80)
+                  : context.warna.outline.withAlpha(120)),
+        ),
       ),
       child: Text(
-        teks,
+        text,
         style: context.teks.labelSmall?.copyWith(
-          color: bahaya ? a.bahaya : a.peringatan,
+          color: textColor,
+          fontWeight: FontWeight.bold,
           letterSpacing: 0,
         ),
       ),
@@ -859,7 +1012,6 @@ class _Pil extends StatelessWidget {
 // Keranjang
 // ---------------------------------------------------------------------------
 
-/// Bilah tinta mengambang. Selalu terlihat begitu keranjang ada isinya.
 class BilahKeranjang extends StatelessWidget {
   const BilahKeranjang({
     super.key,
@@ -879,59 +1031,125 @@ class BilahKeranjang extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final a = context.aksen;
-    return Material(
-      color: a.fokus,
-      borderRadius: BorderRadius.circular(Lengkung.kontrol),
-      child: InkWell(
-        onTap: onBuka,
-        borderRadius: BorderRadius.circular(Lengkung.kontrol),
-        child: Container(
-          padding: const EdgeInsets.all(Jarak.xs2),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(Lengkung.kontrol),
-            boxShadow: a.bayanganMengambang,
+
+    return Container(
+      decoration: BoxDecoration(
+        color: context.warna.primaryContainer,
+        borderRadius: BorderRadius.circular(Lengkung.panel),
+        border: Border.all(
+          color: context.warna.primary.withAlpha(80),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: context.warna.primary.withAlpha(40),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
-          child: Row(
-            children: [
-              const SizedBox(width: Jarak.xs3),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '$jumlahItem item · ${rupiah(total)}',
-                      style: context.teks.titleSmall?.copyWith(
-                        color: a.atasFokus,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      ringkasan,
-                      style: context.teks.bodySmall?.copyWith(
-                        color: a.atasFokusRedup,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: Jarak.xs2),
-              SizedBox(
-                height: 44,
-                child: FilledButton(
-                  onPressed: onBayar,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: a.atasFokus,
-                    foregroundColor: a.fokus,
-                    minimumSize: const Size(0, 44),
-                    padding: const EdgeInsets.symmetric(horizontal: Jarak.sm),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(Lengkung.panel),
+        child: InkWell(
+          onTap: onBuka,
+          borderRadius: BorderRadius.circular(Lengkung.panel),
+          child: Padding(
+            padding: const EdgeInsets.all(Jarak.xs),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: context.warna.primary,
+                    borderRadius: BorderRadius.circular(Lengkung.kontrol),
                   ),
-                  child: const Text('Bayar'),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Icon(
+                        Icons.shopping_cart_rounded,
+                        color: context.warna.onPrimary,
+                        size: 22,
+                      ),
+                      Positioned(
+                        right: 4,
+                        top: 4,
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            color: a.sukses,
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: const BoxConstraints(
+                            minWidth: 16,
+                            minHeight: 16,
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            '$jumlahItem',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(width: Jarak.xs),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        rupiah(total),
+                        style: context.teks.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: context.warna.onPrimaryContainer,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        '$jumlahItem item · $ringkasan',
+                        style: context.teks.bodySmall?.copyWith(
+                          color: context.warna.onPrimaryContainer.withAlpha(180),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: Jarak.xs),
+                SizedBox(
+                  height: 44,
+                  child: FilledButton.icon(
+                    onPressed: onBayar,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: a.sukses,
+                      foregroundColor: Colors.white,
+                      shape: const StadiumBorder(),
+                      padding: const EdgeInsets.symmetric(horizontal: Jarak.sm),
+                      elevation: 2,
+                    ),
+                    icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                    label: const Text(
+                      'Bayar',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -939,7 +1157,6 @@ class BilahKeranjang extends StatelessWidget {
   }
 }
 
-/// Panel keranjang tetap untuk layar ≥ 600 px.
 class _PanelKeranjang extends StatelessWidget {
   const _PanelKeranjang({
     required this.item,
@@ -1038,14 +1255,11 @@ class _IsiKeranjang extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
-                child: Text('Keranjang', style: context.teks.titleLarge),
+                child: Text('Keranjang Belanja', style: context.teks.titleLarge),
               ),
-              // Bertinta bahaya, sama seperti kembarannya di bilah atas.
-              // "Kosongkan" yang tampil netral di satu tempat dan merah di
-              // tempat lain membuat orang mengira keduanya berbeda akibat.
               TextButton.icon(
                 onPressed: onKosongkan,
-                icon: const Icon(Icons.remove_shopping_cart_outlined, size: 18),
+                icon: const Icon(Icons.delete_sweep_rounded, size: 18),
                 label: const Text('Kosongkan'),
                 style: TextButton.styleFrom(
                   foregroundColor: context.aksen.bahaya,
@@ -1083,14 +1297,23 @@ class _BarisKeranjang extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: Jarak.xs3),
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.all(Jarak.xs2),
+      decoration: BoxDecoration(
+        color: context.warna.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(Lengkung.kontrol),
+        border: Border.all(color: context.warna.outline.withAlpha(80)),
+      ),
       child: Row(
         children: [
-          SizedBox(
-            width: 44,
-            height: 44,
-            child: BlokFoto(url: item.produk.gambarUrl, tampilkanLabel: false),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(
+              width: 44,
+              height: 44,
+              child: BlokFoto(url: item.produk.gambarUrl, tampilkanLabel: false),
+            ),
           ),
           const SizedBox(width: Jarak.xs),
           Expanded(
@@ -1100,20 +1323,30 @@ class _BarisKeranjang extends StatelessWidget {
                 Text(
                   item.produk.nama,
                   style: context.teks.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.bold,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  '${rupiah(item.produk.hargaJual)} · ${rupiah(item.subtotal)}',
+                  '${rupiah(item.produk.hargaJual)} x ${item.jumlah}',
                   style: context.teks.bodySmall?.copyWith(
                     color: context.warna.onSurfaceVariant,
+                    fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
+            ),
+          ),
+          const SizedBox(width: Jarak.xs2),
+          Text(
+            rupiah(item.subtotal),
+            style: context.teks.bodyMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: context.warna.primary,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
           const SizedBox(width: Jarak.xs2),
@@ -1123,12 +1356,12 @@ class _BarisKeranjang extends StatelessWidget {
             onTekan: () => onUbah(item.produk.id, -1),
           ),
           SizedBox(
-            width: 28,
+            width: 24,
             child: Text(
               '${item.jumlah}',
               textAlign: TextAlign.center,
               style: context.teks.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ),
@@ -1160,11 +1393,20 @@ class _KakiKeranjang extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final a = context.aksen;
+
     return Container(
-      padding: const EdgeInsets.all(Jarak.sm),
+      padding: const EdgeInsets.all(Jarak.md),
       decoration: BoxDecoration(
         color: context.warna.surfaceContainerLowest,
         border: Border(top: BorderSide(color: context.warna.outline)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(10),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
       ),
       child: SafeArea(
         top: false,
@@ -1175,16 +1417,19 @@ class _KakiKeranjang extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    'Total',
+                    'Total Pembayaran',
                     style: context.teks.bodyMedium?.copyWith(
                       color: context.warna.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
                 Flexible(
                   child: Text(
                     rupiah(total),
-                    style: context.teks.titleLarge?.copyWith(
+                    style: context.teks.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: context.warna.primary,
                       fontFeatures: const [FontFeature.tabularFigures()],
                     ),
                     maxLines: 1,
@@ -1193,33 +1438,47 @@ class _KakiKeranjang extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: Jarak.xs),
+            const SizedBox(height: Jarak.md),
             Row(
               children: [
                 if (!tanpaKosongkan) ...[
-                  IconButton.outlined(
-                    onPressed: onKosongkan,
-                    icon: const Icon(
-                      Icons.remove_shopping_cart_outlined,
-                      size: 20,
-                    ),
-                    tooltip: 'Kosongkan keranjang',
-                    style: IconButton.styleFrom(
-                      foregroundColor: context.aksen.bahaya,
-                      side: BorderSide(
-                        color: context.aksen.bahaya.withValues(alpha: 0.35),
+                  SizedBox(
+                    height: 50,
+                    width: 50,
+                    child: OutlinedButton(
+                      onPressed: onKosongkan,
+                      style: OutlinedButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        foregroundColor: a.bahaya,
+                        side: BorderSide(color: a.bahaya.withAlpha(100)),
+                        shape: const StadiumBorder(),
                       ),
-                      minimumSize: const Size(48, 48),
+                      child: Icon(
+                        Icons.delete_sweep_rounded,
+                        size: 22,
+                        color: a.bahaya,
+                      ),
                     ),
                   ),
                   const SizedBox(width: Jarak.xs),
                 ],
                 Expanded(
                   child: SizedBox(
-                    height: 48,
-                    child: FilledButton(
+                    height: 50,
+                    child: FilledButton.icon(
                       onPressed: onBayar,
-                      child: const Text('Bayar'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: a.sukses,
+                        foregroundColor: Colors.white,
+                        shape: const StadiumBorder(),
+                        elevation: 3,
+                        textStyle: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      icon: const Icon(Icons.payments_rounded, size: 20),
+                      label: const Text('Proses Pembayaran'),
                     ),
                   ),
                 ),

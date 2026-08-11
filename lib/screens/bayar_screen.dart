@@ -733,12 +733,14 @@ class HasilBayarScreen extends StatelessWidget {
     try {
       final toko = await Repositori.toko();
       final pengaturan = await Repositori.pengaturanStruk();
+      final langganan = await Repositori.langganan();
       if (!context.mounted) return;
       await PencetakStruk.cetakOtomatisBluetooth(
         context,
         toko: toko,
         pengaturan: pengaturan,
         transaksi: transaksi,
+        langganan: langganan,
       );
     } catch (e) {
       if (!context.mounted) return;
@@ -752,12 +754,14 @@ class HasilBayarScreen extends StatelessWidget {
     try {
       final toko = await Repositori.toko();
       final pengaturan = await Repositori.pengaturanStruk();
+      final langganan = await Repositori.langganan();
       if (!context.mounted) return;
       await PencetakStruk.bagikanStruk(
         context,
         toko: toko,
         pengaturan: pengaturan,
         transaksi: transaksi,
+        langganan: langganan,
       );
     } catch (e) {
       if (!context.mounted) return;

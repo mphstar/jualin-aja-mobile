@@ -22,6 +22,18 @@ abstract class PencetakStruk {
   static const _kunciMac = 'printer_bt_mac';
   static const _kunciNama = 'printer_bt_nama';
 
+  /// Teks kaki struk bawaan jika tidak berlangganan Pro atau teks kosong.
+  static const teksKakiStrukDefault = 'Copyright by JualinAja';
+
+  /// Mendapatkan teks kaki struk yang berlaku berdasarkan status langganan.
+  static String dapatkanKakiEfektif(PengaturanStruk pengaturan, Langganan? langganan) {
+    final isPro = langganan?.bolehCustomKakiStruk ?? false;
+    if (isPro && pengaturan.kaki.trim().isNotEmpty) {
+      return pengaturan.kaki.trim();
+    }
+    return teksKakiStrukDefault;
+  }
+
   /// Transaksi uji coba untuk pratinjau dan tes printer.
   static final _transaksiUjiCoba = Transaksi(
     id: 'sample',
@@ -93,6 +105,7 @@ abstract class PencetakStruk {
     required Toko toko,
     required PengaturanStruk pengaturan,
     required Transaksi transaksi,
+    Langganan? langganan,
     BluetoothDevice? device,
   }) async {
     final target = device ?? await ambilPrinterTersimpan();
@@ -175,9 +188,8 @@ abstract class PencetakStruk {
     _bluetooth.printCustom(pemisah, 0, 1);
 
     // Footer Struk
-    if (pengaturan.kaki.trim().isNotEmpty) {
-      _bluetooth.printCustom(pengaturan.kaki.trim(), 0, 1);
-    }
+    final kakiEfektif = dapatkanKakiEfektif(pengaturan, langganan);
+    _bluetooth.printCustom(kakiEfektif, 0, 1);
     _bluetooth.printCustom('Terima kasih atas kunjungan Anda', 0, 1);
 
     _bluetooth.printNewLine();
@@ -194,6 +206,7 @@ abstract class PencetakStruk {
     required Toko toko,
     required PengaturanStruk pengaturan,
     required Transaksi transaksi,
+    Langganan? langganan,
   }) async {
     var device = await ambilPrinterTersimpan();
 
@@ -208,6 +221,7 @@ abstract class PencetakStruk {
       toko: toko,
       pengaturan: pengaturan,
       transaksi: transaksi,
+      langganan: langganan,
       device: device,
     );
 
@@ -237,6 +251,7 @@ abstract class PencetakStruk {
     required Toko toko,
     required PengaturanStruk pengaturan,
     required Transaksi transaksi,
+    Langganan? langganan,
   }) async {
     final doc = pw.Document();
 
@@ -405,17 +420,15 @@ abstract class PencetakStruk {
               pw.Divider(thickness: 0.5, borderStyle: pw.BorderStyle.dashed),
 
               // Footer Struk
-              if (pengaturan.kaki.trim().isNotEmpty) ...[
-                pw.SizedBox(height: 3),
-                pw.Text(
-                  pengaturan.kaki.trim(),
-                  textAlign: pw.TextAlign.center,
-                  style: gayaMono.copyWith(
-                    fontSize: 8,
-                    fontStyle: pw.FontStyle.italic,
-                  ),
+              pw.SizedBox(height: 3),
+              pw.Text(
+                dapatkanKakiEfektif(pengaturan, langganan),
+                textAlign: pw.TextAlign.center,
+                style: gayaMono.copyWith(
+                  fontSize: 8,
+                  fontStyle: pw.FontStyle.italic,
                 ),
-              ],
+              ),
               pw.SizedBox(height: 4),
               pw.Text(
                 'Terima kasih atas kunjungan Anda',
@@ -437,11 +450,13 @@ abstract class PencetakStruk {
     required Toko toko,
     required PengaturanStruk pengaturan,
     required Transaksi transaksi,
+    Langganan? langganan,
   }) async {
     final pdfBytes = await buatPdfStruk(
       toko: toko,
       pengaturan: pengaturan,
       transaksi: transaksi,
+      langganan: langganan,
     );
 
     await Printing.layoutPdf(
@@ -456,11 +471,13 @@ abstract class PencetakStruk {
     required Toko toko,
     required PengaturanStruk pengaturan,
     required Transaksi transaksi,
+    Langganan? langganan,
   }) async {
     final pdfBytes = await buatPdfStruk(
       toko: toko,
       pengaturan: pengaturan,
       transaksi: transaksi,
+      langganan: langganan,
     );
 
     await Printing.sharePdf(
@@ -474,12 +491,14 @@ abstract class PencetakStruk {
     BuildContext context, {
     required Toko toko,
     required PengaturanStruk pengaturan,
+    Langganan? langganan,
   }) async {
     await cetakOtomatisBluetooth(
       context,
       toko: toko,
       pengaturan: pengaturan,
       transaksi: _transaksiUjiCoba,
+      langganan: langganan,
     );
   }
 
@@ -488,12 +507,14 @@ abstract class PencetakStruk {
     BuildContext context, {
     required Toko toko,
     required PengaturanStruk pengaturan,
+    Langganan? langganan,
   }) async {
     await bagikanStruk(
       context,
       toko: toko,
       pengaturan: pengaturan,
       transaksi: _transaksiUjiCoba,
+      langganan: langganan,
     );
   }
 

@@ -9,6 +9,7 @@ import '../util/pencetak_struk.dart';
 import '../widgets/bingkai.dart';
 import '../widgets/kartu.dart';
 import '../widgets/lembar_pilih_printer.dart';
+import '../widgets/modal_fitur_terkunci.dart';
 import '../widgets/rangka.dart';
 import '../widgets/tombol_pil.dart';
 
@@ -27,11 +28,12 @@ class StrukScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Struk & printer')),
       body: SafeArea(
         top: false,
-        child: Bingkai<(Toko, PengaturanStruk)>(
+        child: Bingkai<(Toko, PengaturanStruk, Langganan)>(
           ambil: () async {
             final toko = await Repositori.toko();
             final struk = await Repositori.pengaturanStruk();
-            return (toko, struk);
+            final langganan = await Repositori.langganan();
+            return (toko, struk, langganan);
           },
           rangka: const Padding(
             padding: EdgeInsets.all(Jarak.sm),
@@ -42,7 +44,11 @@ class StrukScreen extends StatelessWidget {
               ],
             ),
           ),
-          isi: (context, data) => _Isi(toko: data.$1, awal: data.$2),
+          isi: (context, data) => _Isi(
+            toko: data.$1,
+            awal: data.$2,
+            langganan: data.$3,
+          ),
         ),
       ),
     );
@@ -50,10 +56,15 @@ class StrukScreen extends StatelessWidget {
 }
 
 class _Isi extends StatefulWidget {
-  const _Isi({required this.toko, required this.awal});
+  const _Isi({
+    required this.toko,
+    required this.awal,
+    required this.langganan,
+  });
 
   final Toko toko;
   final PengaturanStruk awal;
+  final Langganan langganan;
 
   @override
   State<_Isi> createState() => _IsiState();
@@ -134,7 +145,11 @@ class _IsiState extends State<_Isi> {
                 ),
                 children: [
                   const JudulBagian('Pratinjau'),
-                  PratinjauStruk(toko: widget.toko, pengaturan: pratinjau),
+                  PratinjauStruk(
+                    toko: widget.toko,
+                    pengaturan: pratinjau,
+                    langganan: widget.langganan,
+                  ),
 
                   const SizedBox(height: Jarak.md),
                   const JudulBagian('Lebar kertas'),
@@ -172,21 +187,61 @@ class _IsiState extends State<_Isi> {
                     onChanged: (_) => setState(() {}),
                     decoration: const InputDecoration(
                       labelText: 'Kepala struk',
-                      hintText: 'Mis. Terima kasih sudah mampir',
+                      hintText: 'Mis. Selamat datang di Toko Kami',
                     ),
                   ),
-                  TextField(
-                    controller: _kaki,
-                    textCapitalization: TextCapitalization.sentences,
-                    maxLength: 80,
-                    maxLines: 2,
-                    minLines: 1,
-                    onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(
-                      labelText: 'Kaki struk',
-                      hintText:
-                          'Mis. Barang yang sudah dibeli tidak dapat ditukar',
-                    ),
+                  Builder(
+                    builder: (context) {
+                      final isPro = widget.langganan.bolehCustomKakiStruk;
+                      return TextField(
+                        controller: _kaki,
+                        readOnly: !isPro,
+                        textCapitalization: TextCapitalization.sentences,
+                        maxLength: 80,
+                        maxLines: 2,
+                        minLines: 1,
+                        onTap: !isPro
+                            ? () {
+                                ModalFiturTerkunci.tampilkan(
+                                  context,
+                                  jenis: JenisFiturTerkunci.kakiStruk,
+                                );
+                              }
+                            : null,
+                        onChanged: (_) => setState(() {}),
+                        decoration: InputDecoration(
+                          labelText: 'Kaki struk (Footer)',
+                          hintText: isPro
+                              ? 'Mis. Terima kasih, datang kembali!'
+                              : 'Copyright by JualinAja',
+                          suffixIcon: !isPro
+                              ? IconButton(
+                                  icon: Icon(
+                                    Icons.lock_outlined,
+                                    size: 20,
+                                    color: context.warna.primary,
+                                  ),
+                                  tooltip: 'Fitur Berlangganan (Pro)',
+                                  onPressed: () {
+                                    ModalFiturTerkunci.tampilkan(
+                                      context,
+                                      jenis: JenisFiturTerkunci.kakiStruk,
+                                    );
+                                  },
+                                )
+                              : null,
+                          helperText: !isPro
+                              ? 'Default: "Copyright by JualinAja". Kustomisasi khusus akun Berlangganan.'
+                              : null,
+                          helperMaxLines: 2,
+                          helperStyle: TextStyle(
+                            color: !isPro
+                                ? context.warna.primary
+                                : context.warna.onSurfaceVariant,
+                          ),
+                        ),
+                      );
+                    },
                   ),
 
                   const SizedBox(height: Jarak.xs2),
@@ -216,7 +271,11 @@ class _IsiState extends State<_Isi> {
                   ),
 
                   const SizedBox(height: Jarak.md),
-                  _OpsiPencetak(toko: widget.toko, pengaturan: pratinjau),
+                  _OpsiPencetak(
+                    toko: widget.toko,
+                    pengaturan: pratinjau,
+                    langganan: widget.langganan,
+                  ),
 
                   if (_galat != null) ...[
                     const SizedBox(height: Jarak.sm),
@@ -314,10 +373,15 @@ class _Sakelar extends StatelessWidget {
 }
 
 class _OpsiPencetak extends StatefulWidget {
-  const _OpsiPencetak({required this.toko, required this.pengaturan});
+  const _OpsiPencetak({
+    required this.toko,
+    required this.pengaturan,
+    this.langganan,
+  });
 
   final Toko toko;
   final PengaturanStruk pengaturan;
+  final Langganan? langganan;
 
   @override
   State<_OpsiPencetak> createState() => _OpsiPencetakState();
@@ -379,6 +443,7 @@ class _OpsiPencetakState extends State<_OpsiPencetak> {
                 context,
                 toko: widget.toko,
                 pengaturan: widget.pengaturan,
+                langganan: widget.langganan,
               ),
             ),
             BarisDaftar(
@@ -394,6 +459,7 @@ class _OpsiPencetakState extends State<_OpsiPencetak> {
                 context,
                 toko: widget.toko,
                 pengaturan: widget.pengaturan,
+                langganan: widget.langganan,
               ),
             ),
           ],
@@ -418,10 +484,12 @@ class PratinjauStruk extends StatelessWidget {
     super.key,
     required this.toko,
     required this.pengaturan,
+    this.langganan,
   });
 
   final Toko toko;
   final PengaturanStruk pengaturan;
+  final Langganan? langganan;
 
   static const _baris = <(String, int, int)>[
     ('Kopi Susu Gula Aren', 2, 18000),
@@ -525,10 +593,12 @@ class PratinjauStruk extends StatelessWidget {
               Text('Kasir: Bintang', style: redup),
             ],
 
-            if (pengaturan.kaki.isNotEmpty) ...[
-              const _Putus(),
-              Text(pengaturan.kaki, textAlign: TextAlign.center, style: redup),
-            ],
+            const _Putus(),
+            Text(
+              PencetakStruk.dapatkanKakiEfektif(pengaturan, langganan),
+              textAlign: TextAlign.center,
+              style: redup,
+            ),
           ],
         ),
       ),

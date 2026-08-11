@@ -4,6 +4,7 @@ import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../widgets/ikon_kotak.dart';
 import '../widgets/kartu.dart';
+import '../util/tautan_wa.dart';
 import 'tiket_screen.dart';
 
 /// Halaman Bantuan dan Dukungan Pelanggan (FAQ & Contact Support).
@@ -46,21 +47,13 @@ class BantuanScreen extends StatelessWidget {
                   BarisDaftar(
                     awalan: const IkonKotak(Icons.chat_bubble_outline, ukuran: 36),
                     judul: 'WhatsApp CS Support',
-                    keterangan: '+62 812-3456-7890 (Respon Cepat)',
+                    keterangan: '+$nomorWhatsAppCSDefault (Respon Cepat)',
                     bawahAkhiran: Icon(
                       Icons.open_in_new,
                       size: 18,
                       color: context.warna.onSurfaceVariant,
                     ),
-                    onTekan: () {
-                      ScaffoldMessenger.of(context)
-                        ..hideCurrentSnackBar()
-                        ..showSnackBar(
-                          const SnackBar(
-                            content: Text('Menghubungkan ke WhatsApp Support (+62 812-3456-7890)…'),
-                          ),
-                        );
-                    },
+                    onTekan: () => bukaWhatsApp(context),
                   ),
                   BarisDaftar(
                     awalan: const IkonKotak(Icons.mail_outline, ukuran: 36),

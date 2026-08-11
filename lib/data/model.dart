@@ -478,7 +478,7 @@ extension LabelVersi on VersiLangganan {
 
 /// Sumber kebenaran TUNGGAL untuk hak akses & batasan fitur di Flutter mobile.
 abstract final class FiturLangganan {
-  static const int batasProdukGratis = 20;
+  static const int batasProdukGratis = 5;
 
   static VersiLangganan versiDariStatus(StatusLangganan status) {
     return switch (status) {
@@ -493,6 +493,9 @@ abstract final class FiturLangganan {
 
   static bool bolehAksesVoucher(VersiLangganan versi) =>
       versi != VersiLangganan.gratis;
+
+  static bool bolehCustomKakiStruk(VersiLangganan versi) =>
+      versi == VersiLangganan.langganan;
 
   static bool bolehTransaksi(VersiLangganan versi) => true;
 
@@ -556,6 +559,9 @@ class Langganan {
 
   /// Voucher/diskon transaksi terbuka untuk Trial dan Langganan.
   bool get bolehAksesVoucher => FiturLangganan.bolehAksesVoucher(versi);
+
+  /// Kustomisasi teks kaki struk hanya terbuka untuk paket Berlangganan (Pro).
+  bool get bolehCustomKakiStruk => FiturLangganan.bolehCustomKakiStruk(versi);
 
   /// Pencatatan transaksi terbuka untuk SEMUA versi, termasuk Gratis.
   bool get bolehTransaksi => FiturLangganan.bolehTransaksi(versi);

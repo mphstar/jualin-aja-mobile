@@ -10,6 +10,7 @@ enum JenisFiturTerkunci {
   resep,
   voucher,
   batasProduk,
+  kakiStruk,
 }
 
 /// Bottom sheet interaktif dan atraktif untuk memotivasi pengguna melakukan upgrade langganan.
@@ -241,12 +242,23 @@ class ModalFiturTerkunci extends StatelessWidget {
       case JenisFiturTerkunci.batasProduk:
         return (
           'Buka Batas Maksimal Produk',
-          'Akun Gratis dibatasi 20 produk. Upgrade untuk produk tanpa batas.',
+          'Akun Gratis dibatasi 5 produk. Upgrade untuk produk tanpa batas.',
           Icons.inventory_2_rounded,
           [
             'Tambah produk & varian tanpa batas jumlah',
             'Kelola stok barang otomatis & peringatan stok habis',
             'Fitur impor & ekspor katalog lewat berkas Excel',
+          ],
+        );
+      case JenisFiturTerkunci.kakiStruk:
+        return (
+          'Kustomisasi Teks Kaki Struk',
+          'Teks bawaan "Copyright by JualinAja". Upgrade ke Pro untuk kustomisasi!',
+          Icons.receipt_long_rounded,
+          [
+            'Ubah teks kaki (footer) struk sesuai branding toko Anda',
+            'Sampaikan ucapan terima kasih, pesan khusus, atau akun medsos toko',
+            'Bebas ubah kapan saja untuk cetak Bluetooth & PDF struk',
           ],
         );
     }

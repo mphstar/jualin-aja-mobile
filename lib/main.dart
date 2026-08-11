@@ -28,20 +28,22 @@ import 'theme/app_theme.dart';
 import 'theme/tokens.dart';
 import 'widgets/app_shell.dart';
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  await Future.wait([muatToken(), muatBasisApi(), muatBackdoor()]);
-
-  // Error runtime selalu direkam ke log backdoor, lalu tetap diteruskan ke
-  // penanganan bawaan Flutter supaya perilaku aplikasi tidak berubah.
-  FlutterError.onError = (details) {
-    catatError('flutter', details.exception, details.stack);
-    FlutterError.presentError(details);
-  };
-
+void main() {
   runZonedGuarded(
-    () => runApp(const AplikasiPos()),
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
+
+      await Future.wait([muatToken(), muatBasisApi(), muatBackdoor()]);
+
+      // Error runtime selalu direkam ke log backdoor, lalu tetap diteruskan ke
+      // penanganan bawaan Flutter supaya perilaku aplikasi tidak berubah.
+      FlutterError.onError = (details) {
+        catatError('flutter', details.exception, details.stack);
+        FlutterError.presentError(details);
+      };
+
+      runApp(const AplikasiPos());
+    },
     (error, stack) => catatError('async', error, stack),
   );
 }
@@ -74,7 +76,10 @@ class _AplikasiPosState extends State<AplikasiPos> {
   Future<void> _cekSesi() async {
     final sesi = await Repositori.cekSesi();
     if (!mounted) return;
-    setState(() => _tahap = sesi != null ? _Tahap.aplikasi : _Tahap.sambutan);
+    // Jika sesi berhasil dimuat atau token masih tersimpan di SharedPreferences (misal server lambat/offline),
+    // pertahankan status login dan hanya kembali ke login jika token benar-benar tidak ada/401.
+    final masihLogin = sesi != null || sudahMasuk;
+    setState(() => _tahap = masihLogin ? _Tahap.aplikasi : _Tahap.sambutan);
   }
 
   void _gantiTema() =>

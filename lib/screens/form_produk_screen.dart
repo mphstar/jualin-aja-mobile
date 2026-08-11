@@ -6,6 +6,8 @@ import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../util/format.dart';
 import '../widgets/kartu.dart';
+import '../widgets/modal_fitur_terkunci.dart';
+import '../widgets/modal_hapus_produk.dart';
 import '../widgets/tombol_pil.dart';
 import 'kategori_screen.dart' show suntingKategori;
 
@@ -143,6 +145,36 @@ class _FormProdukScreenState extends State<FormProdukScreen> {
         _menyimpan = false;
         _galat = e.pesan;
       });
+      final pss = e.pesan.toLowerCase();
+      if (pss.contains('batas') || pss.contains('gratis') || pss.contains('kuota')) {
+        ModalFiturTerkunci.tampilkan(
+          context,
+          jenis: JenisFiturTerkunci.batasProduk,
+        );
+      }
+    }
+  }
+
+  Future<void> _konfirmasiHapus() async {
+    final p = widget.produk;
+    if (p == null) return;
+
+    final katIndex = _kategori.indexWhere((k) => k.id == _kategoriId);
+    final namaKat = katIndex >= 0 ? _kategori[katIndex].nama : null;
+
+    final terhapus = await ModalHapusProduk.tampilkan(
+      context,
+      produk: p,
+      namaKategori: namaKat,
+    );
+
+    if (terhapus == true && mounted) {
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text('${p.nama} telah dihapus')),
+        );
     }
   }
 
@@ -156,6 +188,14 @@ class _FormProdukScreenState extends State<FormProdukScreen> {
           icon: const Icon(Icons.close),
           tooltip: 'Batal',
         ),
+        actions: [
+          if (_ubah)
+            IconButton(
+              onPressed: _menyimpan ? null : _konfirmasiHapus,
+              icon: Icon(Icons.delete_outline, color: context.aksen.bahaya),
+              tooltip: 'Hapus produk',
+            ),
+        ],
       ),
       body: SafeArea(
         top: false,
@@ -209,10 +249,6 @@ class _FormProdukScreenState extends State<FormProdukScreen> {
                                 onSelected: (_) =>
                                     setState(() => _kategoriId = k.id),
                               ),
-                            // Berdiri di ujung barisan chip, bukan di menu lain.
-                            // Kebutuhan "kategorinya belum ada" muncul persis
-                            // saat mata sedang menyapu daftar ini dan tidak
-                            // menemukan yang dicari.
                             ActionChip(
                               avatar: const Icon(Icons.add, size: 18),
                               label: const Text('Kategori baru'),
@@ -305,6 +341,76 @@ class _FormProdukScreenState extends State<FormProdukScreen> {
                                 ),
                               ),
                             ],
+                          ),
+                        ],
+
+                        if (_ubah) ...[
+                          const SizedBox(height: Jarak.lg),
+                          Container(
+                            padding: const EdgeInsets.all(Jarak.sm),
+                            decoration: BoxDecoration(
+                              color: context.aksen.bahaya.withAlpha(15),
+                              borderRadius: BorderRadius.circular(
+                                Lengkung.kontrol,
+                              ),
+                              border: Border.all(
+                                color: context.aksen.bahaya.withAlpha(60),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.delete_forever_outlined,
+                                      color: context.aksen.bahaya,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: Jarak.xs2),
+                                    Text(
+                                      'Zona Bahaya',
+                                      style: context.teks.titleSmall?.copyWith(
+                                        color: context.aksen.bahaya,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: Jarak.xs3),
+                                Text(
+                                  'Menghapus produk ini akan menghapusnya secara permanen dari katalog toko.',
+                                  style: context.teks.bodySmall?.copyWith(
+                                    color: context.warna.onSurfaceVariant,
+                                    height: 1.35,
+                                  ),
+                                ),
+                                const SizedBox(height: Jarak.xs),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    onPressed:
+                                        _menyimpan ? null : _konfirmasiHapus,
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: context.aksen.bahaya,
+                                      side: BorderSide(
+                                        color: context.aksen.bahaya,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          Lengkung.kontrol,
+                                        ),
+                                      ),
+                                    ),
+                                    icon: const Icon(
+                                      Icons.delete_forever_rounded,
+                                      size: 18,
+                                    ),
+                                    label: const Text('Hapus Produk Ini'),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ],

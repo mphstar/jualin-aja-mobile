@@ -8,7 +8,6 @@ import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../util/format.dart';
 import '../widgets/app_shell.dart';
-import '../widgets/batang.dart';
 import '../widgets/bingkai.dart';
 import '../widgets/ikon_kotak.dart';
 import '../widgets/kartu.dart';
@@ -22,21 +21,16 @@ import '../widgets/rangka.dart';
 import 'piutang_screen.dart';
 import 'produk_screen.dart';
 
-/// Beranda.
+/// Beranda Aplikasi POS yang intuitif & ramah pengguna awal.
 ///
-/// Susunannya menuruni satu tangga kepentingan, bukan deretan kartu setara:
-///
-///   1. sapaan            siapa dan toko apa
-///   2. **panel tinta**   angka hari ini + tombol Buka kasir, satu objek
-///   3. perlu perhatian   hanya muncul kalau memang ada
-///   4. aksi cepat        empat tujuan sekunder, seragam
-///   5. transaksi         bukti bahwa hari ini berjalan
-///
-/// Gagasan intinya ada di nomor dua: **angka dan aksinya satu benda.** Kartu
-/// statistik yang terpisah dari tombolnya memaksa mata melompat dua kali untuk
-/// satu keputusan ("ramai tidak hari ini? ya sudah, buka kasir"). Digabung,
-/// keputusan itu selesai dalam satu pandangan — dan itulah satu-satunya
-/// permukaan fokus yang boleh ada di layar ini.
+/// Tata letak dirancang bersih dan mudah dipahami:
+///   1. Header Sapaan & Status Shift Kasir
+///   2. Spanduk Utama Aksi Shift (Buka Kasir / Kasir Aktif)
+///   3. Panduan Langkah Awal Toko (tampil jika belum ada penjualan)
+///   4. Ringkasan Statistik Penjualan Hari Ini (Omzet, Transaksi, Item)
+///   5. Pintasan Aksi Cepat
+///   6. Perlu Perhatian (bila ada stok habis/piutang)
+///   7. Riwayat Transaksi Terakhir
 class BerandaScreen extends StatelessWidget {
   const BerandaScreen({super.key, required this.onBukaKasir, this.onKeTab});
 
@@ -54,9 +48,9 @@ class BerandaScreen extends StatelessWidget {
       rangka: ListView(
         padding: padding,
         children: const [
-          _Sapaan(),
+          _SapaanHeader(),
           SizedBox(height: Jarak.sm),
-          RangkaPanel(tinggi: 320),
+          RangkaPanel(tinggi: 180),
           SizedBox(height: Jarak.md),
           RangkaDaftar(baris: 3),
         ],
@@ -84,9 +78,15 @@ class _Isi extends StatelessWidget {
     final duaKolom = MediaQuery.sizeOf(context).width >= 900;
 
     final kiri = <Widget>[
-      _PanelHariIni(ringkasan: ringkasan, onBukaKasir: onBukaKasir),
+      _SpandukUtamaShift(onBukaKasir: onBukaKasir),
       const SizedBox(height: Jarak.md),
-      _AksiCepat(onKeTab: onKeTab),
+      if (ringkasan.belumAdaPenjualan) ...[
+        _PanduanAwalToko(onKeTab: onKeTab),
+        const SizedBox(height: Jarak.md),
+      ],
+      _KartuStatistikRingkas(ringkasan: ringkasan),
+      const SizedBox(height: Jarak.md),
+      _AksiCepatGrid(onKeTab: onKeTab),
     ];
 
     final kanan = <Widget>[
@@ -100,10 +100,8 @@ class _Isi extends StatelessWidget {
     return ListView(
       padding: padding,
       children: [
-        const _Sapaan(),
-        const SizedBox(height: Jarak.xs),
-        _StatusKasir(onBukaKasir: onBukaKasir),
-        const SizedBox(height: Jarak.sm),
+        const _SapaanHeader(),
+        const SizedBox(height: Jarak.md),
         if (duaKolom)
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,74 +137,97 @@ class _Isi extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
+// Header Sapaan & Profil Toko
+// ---------------------------------------------------------------------------
 
-class _Sapaan extends StatelessWidget {
-  const _Sapaan();
+class _SapaanHeader extends StatelessWidget {
+  const _SapaanHeader();
 
   String get _salam {
     final jam = DateTime.now().hour;
-    if (jam < 11) return 'Selamat pagi';
-    if (jam < 15) return 'Selamat siang';
-    if (jam < 18) return 'Selamat sore';
-    return 'Selamat malam';
+    if (jam < 11) return 'Selamat pagi ☀️';
+    if (jam < 15) return 'Selamat siang 🌤️';
+    if (jam < 18) return 'Selamat sore 🌆';
+    return 'Selamat malam 🌙';
   }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: context.aksen.isian,
-            shape: BoxShape.circle,
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            inisial(profilContoh.nama),
-            style: context.teks.titleSmall?.copyWith(
-              color: context.warna.onSurfaceVariant,
-            ),
-          ),
-        ),
-        const SizedBox(width: Jarak.xs),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _salam,
-                style: context.teks.bodySmall?.copyWith(
-                  color: context.warna.onSurfaceVariant,
+    return FutureBuilder<({Profil profil, Toko toko})>(
+      future: () async {
+        try {
+          final p = await Repositori.profil();
+          final t = await Repositori.toko();
+          return (profil: p, toko: t);
+        } catch (_) {
+          return (profil: profilContoh, toko: tokoContoh);
+        }
+      }(),
+      builder: (context, snapshot) {
+        final profilNama = snapshot.data?.profil.nama ?? profilContoh.nama;
+        final tokoNama = snapshot.data?.toko.nama ?? tokoContoh.nama;
+
+        return Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    context.warna.primaryContainer,
+                    context.warna.surfaceContainerHigh,
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                overflow: TextOverflow.ellipsis,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: context.warna.primary.withAlpha(80),
+                ),
               ),
-              Text(
-                tokoContoh.nama,
-                style: context.teks.titleMedium,
-                overflow: TextOverflow.ellipsis,
+              alignment: Alignment.center,
+              child: Text(
+                inisial(profilNama),
+                style: context.teks.titleMedium?.copyWith(
+                  color: context.warna.primary,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ],
-          ),
-        ),
-        // Tombol notifikasi disembunyikan sementara (disimpan untuk pengembangan mendatang)
-        // IconButton(
-        //   onPressed: () => _menyusul(context, 'Notifikasi'),
-        //   icon: const Icon(Icons.notifications_none),
-        //   tooltip: 'Notifikasi',
-        // ),
-      ],
+            ),
+            const SizedBox(width: Jarak.xs),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _salam,
+                    style: context.teks.bodySmall?.copyWith(
+                      color: context.warna.onSurfaceVariant,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    tokoNama,
+                    style: context.teks.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: Jarak.xs2),
+            _StatusKasirPill(),
+          ],
+        );
+      },
     );
   }
 }
 
-/// Penanda status shift kasir — buka atau tutup.
-class _StatusKasir extends StatelessWidget {
-  const _StatusKasir({required this.onBukaKasir});
-
-  final VoidCallback onBukaKasir;
-
+/// Pill status kasir kecil di header
+class _StatusKasirPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<SesiKasir?>(
@@ -217,7 +238,7 @@ class _StatusKasir extends StatelessWidget {
 
         return Material(
           color: buka ? a.suksesLembut : context.warna.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(Lengkung.kontrol),
+          borderRadius: BorderRadius.circular(Lengkung.bulat),
           child: InkWell(
             onTap: buka
                 ? () => LembarTutupKasir.tampilkan(context, sesi: sesi)
@@ -229,57 +250,32 @@ class _StatusKasir extends StatelessWidget {
                       profilDefault: profil,
                     );
                   },
-            borderRadius: BorderRadius.circular(Lengkung.kontrol),
+            borderRadius: BorderRadius.circular(Lengkung.bulat),
             child: Padding(
               padding: const EdgeInsets.symmetric(
                 horizontal: Jarak.xs,
-                vertical: Jarak.xs2,
+                vertical: 6,
               ),
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    width: 10,
-                    height: 10,
+                    width: 8,
+                    height: 8,
                     decoration: BoxDecoration(
                       color: buka ? a.sukses : context.warna.onSurfaceVariant,
                       shape: BoxShape.circle,
                     ),
                   ),
-                  const SizedBox(width: Jarak.xs2),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          buka
-                              ? 'Kasir Buka · ${sesi.namaKasir}'
-                              : 'Kasir Tutup',
-                          style: context.teks.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: buka
-                                ? a.sukses
-                                : context.warna.onSurfaceVariant,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Text(
-                          buka
-                              ? 'Buka sejak ${jam(sesi.waktuBuka)}'
-                              : 'Ketuk untuk buka shift kasir',
-                          style: context.teks.bodySmall?.copyWith(
-                            color: buka
-                                ? a.sukses.withValues(alpha: 0.7)
-                                : context.warna.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
+                  const SizedBox(width: 6),
+                  Text(
+                    buka ? 'Shift Buka' : 'Shift Tutup',
+                    style: context.teks.labelMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: buka
+                          ? a.sukses
+                          : context.warna.onSurfaceVariant,
                     ),
-                  ),
-                  Icon(
-                    buka ? Icons.lock_open_outlined : Icons.lock_outlined,
-                    size: 20,
-                    color: buka ? a.sukses : context.warna.onSurfaceVariant,
                   ),
                 ],
               ),
@@ -291,121 +287,355 @@ class _StatusKasir extends StatelessWidget {
   }
 }
 
-/// Satu-satunya permukaan fokus di seluruh layar.
-class _PanelHariIni extends StatelessWidget {
-  const _PanelHariIni({required this.ringkasan, required this.onBukaKasir});
+// ---------------------------------------------------------------------------
+// Spanduk Utama Shift Kasir (Aksi Pertama yang Jelas)
+// ---------------------------------------------------------------------------
 
-  final RingkasanBeranda ringkasan;
+class _SpandukUtamaShift extends StatelessWidget {
+  const _SpandukUtamaShift({required this.onBukaKasir});
+
   final VoidCallback onBukaKasir;
 
   @override
   Widget build(BuildContext context) {
     final a = context.aksen;
-    return Container(
-      padding: const EdgeInsets.all(Jarak.md),
-      decoration: BoxDecoration(
-        color: a.fokus,
-        borderRadius: BorderRadius.circular(Lengkung.panel),
-        boxShadow: a.bayanganKartu,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Penjualan hari ini',
-                  style: context.teks.labelSmall?.copyWith(
-                    color: a.atasFokusRedup,
-                    letterSpacing: 0.8,
-                  ),
+
+    return ValueListenableBuilder<SesiKasir?>(
+      valueListenable: Repositori.sesiKasirAktif,
+      builder: (context, sesi, _) {
+        final buka = sesi != null;
+
+        if (!buka) {
+          // Kasir sedang Tutup -> Ajak pengguna Buka Kasir
+          return Container(
+            padding: const EdgeInsets.all(Jarak.md),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  context.warna.primaryContainer,
+                  context.warna.surfaceContainerHigh,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(Lengkung.panel),
+              border: Border.all(
+                color: context.warna.primary.withAlpha(60),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: context.warna.primary.withAlpha(20),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
                 ),
-              ),
-              _SelisihKemarin(persen: ringkasan.selisihPersen),
-            ],
-          ),
-          const SizedBox(height: Jarak.xs2),
-          // Angka panjang mengecil sendiri daripada terpotong. "Rp 1.234.000"
-          // pada 320 px sudah menyentuh tepi.
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              rupiah(ringkasan.omzet),
-              style: context.teks.displaySmall?.copyWith(
-                color: a.atasFokus,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
+              ],
             ),
-          ),
-
-          const SizedBox(height: Jarak.sm),
-          Percikan(
-            nilai: ringkasan.tujuhHari,
-            warna: a.atasFokusRedup.withValues(alpha: 0.35),
-            warnaAkhir: a.atasFokus,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Tujuh hari terakhir',
-            style: context.teks.labelSmall?.copyWith(
-              color: a.atasFokusRedup,
-              letterSpacing: 0.6,
-            ),
-          ),
-
-          const SizedBox(height: Jarak.sm),
-          Divider(height: 1, color: a.atasFokusRedup.withValues(alpha: 0.22)),
-          const SizedBox(height: Jarak.xs),
-
-          if (ringkasan.belumAdaPenjualan)
-            Text(
-              'Belum ada transaksi hari ini.',
-              style: context.teks.bodySmall?.copyWith(color: a.atasFokusRedup),
-            )
-          else
-            Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Keduanya Expanded — pada 320 px, dua label berdampingan yang
-                // berukuran alami sudah cukup untuk meluber keluar panel.
-                Expanded(
-                  child: _AngkaKecil(
-                    label: 'Transaksi',
-                    nilai: '${ringkasan.transaksi}',
-                  ),
+                Row(
+                  children: [
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: context.warna.primary,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: context.warna.primary.withAlpha(70),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.storefront_rounded,
+                        color: context.warna.onPrimary,
+                        size: 26,
+                      ),
+                    ),
+                    const SizedBox(width: Jarak.sm),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Shift Kasir Belum Buka',
+                            style: context.teks.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Buka kasir untuk mulai menerima transaksi & mencatat pesanan',
+                            style: context.teks.bodySmall?.copyWith(
+                              color: context.warna.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: Jarak.md),
                 Container(
-                  width: 1,
-                  height: 30,
-                  margin: const EdgeInsets.symmetric(horizontal: Jarak.xs),
-                  color: a.atasFokusRedup.withValues(alpha: 0.3),
-                ),
-                Expanded(
-                  child: _AngkaKecil(
-                    label: 'Item terjual',
-                    nilai: '${ringkasan.item}',
+                  height: 54,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(Lengkung.bulat),
+                    boxShadow: [
+                      BoxShadow(
+                        color: context.warna.primary.withAlpha(70),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: FilledButton.icon(
+                    onPressed: () async {
+                      final profil = await Repositori.profil();
+                      if (!context.mounted) return;
+                      await LembarBukaKasir.tampilkan(
+                        context,
+                        profilDefault: profil,
+                      );
+                    },
+                    style: FilledButton.styleFrom(
+                      shape: const StadiumBorder(),
+                      textStyle: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    icon: const Icon(Icons.play_arrow_rounded, size: 22),
+                    label: const Text('Buka Shift Kasir Sekarang'),
                   ),
                 ),
               ],
             ),
-          const SizedBox(height: Jarak.md),
-          const SizedBox(height: Jarak.md),
-          SizedBox(
-            height: 52,
-            child: FilledButton.icon(
-              onPressed: onBukaKasir,
-              icon: const Icon(Icons.point_of_sale, size: 20),
-              label: const Text('Buka kasir'),
-              style: FilledButton.styleFrom(
-                backgroundColor: a.atasFokus,
-                foregroundColor: a.fokus,
-                textStyle: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
+          );
+        }
+
+        // Kasir sedang Buka -> Tampilan Bersih, Ringkas & Elegan
+        return Container(
+          padding: const EdgeInsets.all(Jarak.md),
+          decoration: BoxDecoration(
+            color: context.warna.surfaceContainerLowest,
+            borderRadius: BorderRadius.circular(Lengkung.panel),
+            border: Border.all(color: a.sukses.withAlpha(80)),
+            boxShadow: [
+              BoxShadow(
+                color: a.sukses.withAlpha(20),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: a.suksesLembut,
+                      borderRadius: BorderRadius.circular(Lengkung.kontrol),
+                    ),
+                    alignment: Alignment.center,
+                    child: Icon(
+                      Icons.point_of_sale_rounded,
+                      color: a.sukses,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: Jarak.xs),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: a.sukses,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Shift Kasir Aktif',
+                              style: context.teks.titleSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: a.sukses,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${sesi.namaKasir} · Sejak ${jam(sesi.waktuBuka)} · Omzet: ${rupiah(sesi.totalPenjualan)}',
+                          style: context.teks.bodySmall?.copyWith(
+                            color: context.warna.onSurfaceVariant,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: Jarak.md),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: SizedBox(
+                      height: 46,
+                      child: FilledButton.icon(
+                        onPressed: onBukaKasir,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: a.sukses,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(Lengkung.kontrol),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        icon: const Icon(Icons.shopping_cart_checkout, size: 18),
+                        label: const Text('Mulai Penjualan'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: Jarak.xs),
+                  Expanded(
+                    flex: 2,
+                    child: SizedBox(
+                      height: 46,
+                      child: OutlinedButton.icon(
+                        onPressed: () =>
+                            LembarTutupKasir.tampilkan(context, sesi: sesi),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: context.warna.onSurfaceVariant,
+                          side: BorderSide(
+                            color: context.warna.outline,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(Lengkung.kontrol),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        icon: Icon(
+                          Icons.lock_reset_rounded,
+                          size: 16,
+                          color: context.warna.onSurfaceVariant,
+                        ),
+                        label: const Text('Tutup Shift'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Panduan Langkah Awal (Khusus Pengguna / Toko Baru)
+// ---------------------------------------------------------------------------
+
+class _PanduanAwalToko extends StatelessWidget {
+  const _PanduanAwalToko({required this.onKeTab});
+
+  final ValueChanged<int>? onKeTab;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(Jarak.md),
+      decoration: BoxDecoration(
+        color: context.warna.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(Lengkung.panel),
+        border: Border.all(color: context.warna.outline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.emoji_objects_outlined,
+                color: context.warna.primary,
+                size: 22,
+              ),
+              const SizedBox(width: Jarak.xs2),
+              Text(
+                'Langkah Awal Toko Anda',
+                style: context.teks.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: Jarak.xs),
+          Text(
+            'Ikuti 3 langkah sederhana berikut untuk mulai berjualan:',
+            style: context.teks.bodySmall?.copyWith(
+              color: context.warna.onSurfaceVariant,
             ),
+          ),
+          const SizedBox(height: Jarak.sm),
+
+          // Langkah 1: Tambah Produk
+          _BarisLangkah(
+            nomor: '1',
+            judul: 'Tambah Produk Jualan',
+            deskripsi: 'Daftarkan barang atau menu yang akan dijual',
+            selesai: false,
+            onTekan: () => ProdukScreen.bukaFormulir(context),
+            labelAksi: 'Tambah Produk',
+          ),
+          const Divider(height: Jarak.md),
+
+          // Langkah 2: Buka Shift Kasir
+          _BarisLangkah(
+            nomor: '2',
+            judul: 'Buka Shift Kasir',
+            deskripsi: 'Masukkan modal awal kasir untuk mulai transaksi',
+            selesai: false,
+            onTekan: () async {
+              final profil = await Repositori.profil();
+              if (!context.mounted) return;
+              await LembarBukaKasir.tampilkan(context, profilDefault: profil);
+            },
+            labelAksi: 'Buka Kasir',
+          ),
+          const Divider(height: Jarak.md),
+
+          // Langkah 3: Catat Transaksi
+          _BarisLangkah(
+            nomor: '3',
+            judul: 'Catat Penjualan Pertama',
+            deskripsi: 'Pilih produk di layar kasir & cetak struk pembeli',
+            selesai: false,
+            onTekan: () => onKeTab?.call(0),
+            labelAksi: 'Buka Kasir',
           ),
         ],
       ),
@@ -413,12 +643,197 @@ class _PanelHariIni extends StatelessWidget {
   }
 }
 
-/// Pil selisih terhadap kemarin.
-///
-/// Hilang sama sekali kalau kemarin nol — pertumbuhan dari nol bukan "naik
-/// 100%", itu tidak terdefinisi, dan menampilkan angka apa pun di situ adalah
-/// mengarang. Ini juga satu-satunya tempat kroma boleh masuk ke panel tinta,
-/// karena naik/turun memang berstatus.
+class _BarisLangkah extends StatelessWidget {
+  const _BarisLangkah({
+    required this.nomor,
+    required this.judul,
+    required this.deskripsi,
+    required this.selesai,
+    required this.onTekan,
+    required this.labelAksi,
+  });
+
+  final String nomor;
+  final String judul;
+  final String deskripsi;
+  final bool selesai;
+  final VoidCallback onTekan;
+  final String labelAksi;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: selesai
+                ? context.aksen.sukses
+                : context.warna.primaryContainer,
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            nomor,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: selesai
+                  ? Colors.white
+                  : context.warna.onPrimaryContainer,
+            ),
+          ),
+        ),
+        const SizedBox(width: Jarak.xs),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                judul,
+                style: context.teks.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                deskripsi,
+                style: context.teks.bodySmall?.copyWith(
+                  color: context.warna.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: Jarak.xs2),
+        TextButton(
+          onPressed: onTekan,
+          style: TextButton.styleFrom(
+            minimumSize: const Size(0, 32),
+            padding: const EdgeInsets.symmetric(horizontal: Jarak.xs2),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: Text(labelAksi),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Kartu Statistik Penjualan Hari Ini (Bersih & Mudah Dibaca)
+// ---------------------------------------------------------------------------
+
+class _KartuStatistikRingkas extends StatelessWidget {
+  const _KartuStatistikRingkas({required this.ringkasan});
+
+  final RingkasanBeranda ringkasan;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(Jarak.sm),
+      decoration: BoxDecoration(
+        color: context.warna.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(Lengkung.panel),
+        border: Border.all(color: context.warna.outline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'RINGKASAN PENJUALAN HARI INI',
+                  style: context.teks.labelSmall?.copyWith(
+                    color: context.warna.onSurfaceVariant,
+                    letterSpacing: 0.8,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              _SelisihKemarin(persen: ringkasan.selisihPersen),
+            ],
+          ),
+          const SizedBox(height: Jarak.xs2),
+          Text(
+            rupiah(ringkasan.omzet),
+            style: context.teks.headlineMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: context.warna.onSurface,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+          const SizedBox(height: Jarak.sm),
+
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(Jarak.xs),
+                  decoration: BoxDecoration(
+                    color: context.warna.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(Lengkung.kontrol),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Total Transaksi',
+                        style: context.teks.bodySmall?.copyWith(
+                          color: context.warna.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${ringkasan.transaksi}',
+                        style: context.teks.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: Jarak.xs),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(Jarak.xs),
+                  decoration: BoxDecoration(
+                    color: context.warna.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(Lengkung.kontrol),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Item Terjual',
+                        style: context.teks.bodySmall?.copyWith(
+                          color: context.warna.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${ringkasan.item}',
+                        style: context.teks.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SelisihKemarin extends StatelessWidget {
   const _SelisihKemarin({required this.persen});
 
@@ -435,7 +850,7 @@ class _SelisihKemarin extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: warna.withValues(alpha: 0.18),
+        color: warna.withAlpha(25),
         borderRadius: BorderRadius.circular(Lengkung.bulat),
       ),
       child: Row(
@@ -451,7 +866,7 @@ class _SelisihKemarin extends StatelessWidget {
             '${naik ? '+' : ''}$persen%',
             style: context.teks.labelSmall?.copyWith(
               color: warna,
-              letterSpacing: 0,
+              fontWeight: FontWeight.bold,
             ),
           ),
         ],
@@ -460,41 +875,121 @@ class _SelisihKemarin extends StatelessWidget {
   }
 }
 
-class _AngkaKecil extends StatelessWidget {
-  const _AngkaKecil({required this.label, required this.nilai});
+// ---------------------------------------------------------------------------
+// Pintasan Aksi Cepat
+// ---------------------------------------------------------------------------
 
-  final String label;
-  final String nilai;
+class _AksiCepatGrid extends StatelessWidget {
+  const _AksiCepatGrid({required this.onKeTab});
+
+  final ValueChanged<int>? onKeTab;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          nilai,
-          style: context.teks.titleMedium?.copyWith(
-            color: context.aksen.atasFokus,
-            fontFeatures: const [FontFeature.tabularFigures()],
+    return ValueListenableBuilder<SesiKasir?>(
+      valueListenable: Repositori.sesiKasirAktif,
+      builder: (context, sesi, _) {
+        final aksi = <(IconData, String, VoidCallback)>[
+          (
+            Icons.add_box_outlined,
+            'Tambah Produk',
+            () => ProdukScreen.bukaFormulir(context),
           ),
-        ),
-        Text(
-          label,
-          style: context.teks.bodySmall?.copyWith(
-            color: context.aksen.atasFokusRedup,
+          (
+            Icons.inventory_2_outlined,
+            'Kelola Stok',
+            () => onKeTab?.call(1),
           ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
+          (
+            Icons.history_toggle_off,
+            'Riwayat Shift',
+            () => LembarRiwayatShift.tampilkan(context),
+          ),
+          (
+            Icons.print_outlined,
+            'Cetak Struk',
+            () => onKeTab?.call(2),
+          ),
+        ];
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const JudulBagian('Pintasan Aksi'),
+            GridView.builder(
+              padding: EdgeInsets.zero,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 220,
+                mainAxisSpacing: Jarak.xs2,
+                crossAxisSpacing: Jarak.xs2,
+                mainAxisExtent: 68,
+              ),
+              itemCount: aksi.length,
+              itemBuilder: (context, i) {
+                final (ikon, label, onTekan) = aksi[i];
+                return _PetakAksi(ikon: ikon, label: label, onTekan: onTekan);
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 }
 
-/// Muncul HANYA kalau ada yang perlu diperhatikan.
-///
-/// Kartu peringatan yang selalu ada berhenti dibaca dalam tiga hari. Yang
-/// datang dan pergi tetap terbaca setahun kemudian.
+class _PetakAksi extends StatelessWidget {
+  const _PetakAksi({
+    required this.ikon,
+    required this.label,
+    required this.onTekan,
+  });
+
+  final IconData ikon;
+  final String label;
+  final VoidCallback onTekan;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: context.warna.surfaceContainerLowest,
+      borderRadius: BorderRadius.circular(Lengkung.kontrol),
+      child: InkWell(
+        onTap: onTekan,
+        borderRadius: BorderRadius.circular(Lengkung.kontrol),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: Jarak.xs),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(Lengkung.kontrol),
+            border: Border.all(color: context.warna.outline),
+          ),
+          child: Row(
+            children: [
+              IkonKotak(ikon, ukuran: 32),
+              const SizedBox(width: Jarak.xs2),
+              Expanded(
+                child: Text(
+                  label,
+                  style: context.teks.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Perlu Perhatian
+// ---------------------------------------------------------------------------
+
 class _PerluPerhatian extends StatelessWidget {
   const _PerluPerhatian({required this.ringkasan, required this.onKeTab});
 
@@ -565,123 +1060,9 @@ class _PerluPerhatian extends StatelessWidget {
   }
 }
 
-class _AksiCepat extends StatelessWidget {
-  const _AksiCepat({required this.onKeTab});
-
-  final ValueChanged<int>? onKeTab;
-
-  @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<SesiKasir?>(
-      valueListenable: Repositori.sesiKasirAktif,
-      builder: (context, sesi, _) {
-        final aksi = <(IconData, String, VoidCallback)>[
-          if (sesi == null)
-            (
-              Icons.storefront_outlined,
-              'Buka kasir',
-              () async {
-                final profil = await Repositori.profil();
-                if (!context.mounted) return;
-                await LembarBukaKasir.tampilkan(
-                  context,
-                  profilDefault: profil,
-                );
-              },
-            )
-          else
-            (
-              Icons.no_encryption_gmailerrorred_outlined,
-              'Tutup kasir',
-              () => LembarTutupKasir.tampilkan(context, sesi: sesi),
-            ),
-          (
-            Icons.history_toggle_off,
-            'Riwayat shift',
-            () => LembarRiwayatShift.tampilkan(context),
-          ),
-          (
-            Icons.add_box_outlined,
-            'Tambah produk',
-            () => ProdukScreen.bukaFormulir(context),
-          ),
-          (Icons.inventory_2_outlined, 'Cek stok', () => onKeTab?.call(1)),
-          (Icons.print_outlined, 'Cetak ulang struk', () => onKeTab?.call(2)),
-        ];
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const JudulBagian('Aksi cepat'),
-            GridView.builder(
-              padding: EdgeInsets.zero,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 220,
-                mainAxisSpacing: Jarak.xs2,
-                crossAxisSpacing: Jarak.xs2,
-                mainAxisExtent: 76,
-              ),
-              itemCount: aksi.length,
-              itemBuilder: (context, i) {
-                final (ikon, label, onTekan) = aksi[i];
-                return _PetakAksi(ikon: ikon, label: label, onTekan: onTekan);
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _PetakAksi extends StatelessWidget {
-  const _PetakAksi({
-    required this.ikon,
-    required this.label,
-    required this.onTekan,
-  });
-
-  final IconData ikon;
-  final String label;
-  final VoidCallback onTekan;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: context.warna.surfaceContainerLowest,
-      borderRadius: BorderRadius.circular(Lengkung.kontrol),
-      child: InkWell(
-        onTap: onTekan,
-        borderRadius: BorderRadius.circular(Lengkung.kontrol),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: Jarak.xs),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(Lengkung.kontrol),
-            border: Border.all(color: context.warna.outline),
-          ),
-          child: Row(
-            children: [
-              IkonKotak(ikon, ukuran: 34),
-              const SizedBox(width: Jarak.xs2),
-              Expanded(
-                child: Text(
-                  label,
-                  style: context.teks.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
+// ---------------------------------------------------------------------------
+// Riwayat Transaksi Terakhir
+// ---------------------------------------------------------------------------
 
 class _TransaksiTerakhir extends StatelessWidget {
   const _TransaksiTerakhir({required this.daftar, required this.onKeTab});
@@ -705,16 +1086,15 @@ class _TransaksiTerakhir extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: Jarak.xs2),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
-                  child: const Text('Semua'),
+                  child: const Text('Lihat Semua'),
                 ),
         ),
         if (daftar.isEmpty)
           const Keadaan(
             ikon: Icons.receipt_long_outlined,
-            judul: 'Belum ada penjualan',
+            judul: 'Belum ada penjualan hari ini',
             keterangan:
-                'Transaksi pertama akan muncul di sini begitu Anda '
-                'menutup satu pesanan di kasir.',
+                'Transaksi pertama Anda akan otomatis tampil di sini begitu pesanan di kasir diselesaikan.',
           )
         else
           KartuDaftar(
@@ -742,19 +1122,10 @@ class _BarisTransaksi extends StatelessWidget {
       awalan: IkonKotak(ikon, nada: nada, ukuran: 36),
       judul: transaksi.nomorStruk,
       keterangan: transaksi.piutang
-          ? '${relatif(transaksi.waktu)} · '
-                '${transaksi.pelanggan ?? 'Tanpa nama'}'
-          : '${relatif(transaksi.waktu)} · ${transaksi.metode.label} · '
-                '${transaksi.jumlahItem} item',
+          ? '${relatif(transaksi.waktu)} · ${transaksi.pelanggan ?? 'Tanpa nama'}'
+          : '${relatif(transaksi.waktu)} · ${transaksi.metode.label} · ${transaksi.jumlahItem} item',
       akhiran: rupiah(transaksi.total),
       onTekan: () => LembarStruk.tampilkan(context, transaksi),
     );
   }
-}
-
-// ignore: unused_element
-void _menyusul(BuildContext context, String apa) {
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text('$apa menyusul.')));
 }

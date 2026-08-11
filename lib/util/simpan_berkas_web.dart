@@ -2,7 +2,7 @@
 import 'dart:html' as html;
 import 'dart:typed_data';
 
-Future<void> simpanBerkasKePerangkat(Uint8List bytes, String namaBerkas) async {
+Future<String> simpanBerkasKePerangkat(Uint8List bytes, String namaBerkas) async {
   final blob = html.Blob(
     [bytes],
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -15,4 +15,5 @@ Future<void> simpanBerkasKePerangkat(Uint8List bytes, String namaBerkas) async {
   anchor.click();
   anchor.remove();
   html.Url.revokeObjectUrl(url);
+  return namaBerkas;
 }

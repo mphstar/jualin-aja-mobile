@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../util/pilih_berkas.dart';
 import '../util/simpan_berkas.dart';
+import '../widgets/modal_fitur_terkunci.dart';
 import '../widgets/tombol_pil.dart';
 
 /// Dialog modal untuk mengunduh templat format Excel (.xlsx),
@@ -42,12 +43,12 @@ class _DialogImporProdukState extends State<DialogImporProduk> {
 
     try {
       final hasil = await Repositori.unduhFormatImporProduk();
-      await simpanBerkasKePerangkat(hasil.bytes, hasil.filename);
+      final lokasi = await simpanBerkasKePerangkat(hasil.bytes, hasil.filename);
       if (!mounted) return;
 
       setState(() {
         _memprosesUnduh = false;
-        _pesanSukses = 'Templat format Excel berhasil diunduh (${hasil.filename}).';
+        _pesanSukses = 'Templat Excel tersimpan di folder Download ($lokasi).';
       });
     } on GagalMuat catch (e) {
       if (!mounted) return;
@@ -124,124 +125,244 @@ class _DialogImporProdukState extends State<DialogImporProduk> {
 
   @override
   Widget build(BuildContext context) {
+    final a = context.aksen;
+    final lebarLayar = MediaQuery.sizeOf(context).width;
+    final lebarDialog = (lebarLayar - 48).clamp(260.0, 420.0);
+
     return AlertDialog(
-      title: const Row(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(Lengkung.panel),
+      ),
+      titlePadding: const EdgeInsets.fromLTRB(Jarak.md, Jarak.md, Jarak.md, 0),
+      contentPadding: const EdgeInsets.fromLTRB(Jarak.md, Jarak.sm, Jarak.md, Jarak.xs),
+      actionsPadding: const EdgeInsets.fromLTRB(Jarak.md, 0, Jarak.md, Jarak.sm),
+      title: Row(
         children: [
-          Icon(Icons.upload_file, size: 24),
-          SizedBox(width: Jarak.xs),
-          Text('Impor Data Produk Excel'),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: context.warna.primaryContainer,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.upload_file_rounded,
+              color: context.warna.primary,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: Jarak.xs),
+          Expanded(
+            child: Text(
+              'Impor Produk Excel',
+              style: context.teks.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
-      content: SingleChildScrollView(
-        child: SizedBox(
-          width: 440,
+      content: SizedBox(
+        width: lebarDialog,
+        child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Unggah berkas Excel (.xlsx) atau CSV untuk menambah dan memperbarui data produk secara massal.',
-                style: context.teks.bodyMedium?.copyWith(
+                'Unggah berkas Excel (.xlsx) atau CSV untuk menambah & memperbarui daftar produk secara massal.',
+                style: context.teks.bodySmall?.copyWith(
                   color: context.warna.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(height: Jarak.md),
+              const SizedBox(height: Jarak.sm),
 
-              // Langkah 1: Unduh Templat
+              // Langkah 1: Format Templat
               Container(
-                padding: const EdgeInsets.all(Jarak.sm),
+                padding: const EdgeInsets.all(Jarak.xs),
                 decoration: BoxDecoration(
-                  color: context.aksen.kartuAlt,
+                  color: context.warna.surfaceContainerHighest.withAlpha(120),
                   borderRadius: BorderRadius.circular(Lengkung.kontrol),
-                  border: Border.all(color: context.warna.outline),
+                  border: Border.all(color: context.warna.outline.withAlpha(100)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '1. Format Templat Excel',
-                      style: context.teks.titleSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Gunakan format templat standar (.xlsx) yang menyertakan contoh data.',
-                      style: context.teks.bodySmall?.copyWith(
-                        color: context.warna.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: Jarak.xs),
-                    OutlinedButton.icon(
-                      onPressed: _memprosesUnduh ? null : _unduhTemplat,
-                      icon: _memprosesUnduh
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.download, size: 18),
-                      label: Text(_memprosesUnduh ? 'Mengunduh…' : 'Unduh Format Templat (.xlsx)'),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: Jarak.md),
-
-              // Langkah 2: Pilih & Unggah Berkas
-              Container(
-                padding: const EdgeInsets.all(Jarak.sm),
-                decoration: BoxDecoration(
-                  color: context.warna.surfaceContainerLowest,
-                  borderRadius: BorderRadius.circular(Lengkung.kontrol),
-                  border: Border.all(color: context.warna.outline),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '2. Pilih Berkas Excel/CSV',
-                      style: context.teks.titleSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: Jarak.xs),
                     Row(
                       children: [
+                        Container(
+                          width: 22,
+                          height: 22,
+                          decoration: BoxDecoration(
+                            color: context.warna.primary,
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: const Text(
+                            '1',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
                         Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _pilihBerkas,
-                            icon: const Icon(Icons.file_open, size: 18),
-                            label: Text(
-                              _namaBerkasTerpilih ?? 'Pilih Berkas (.xlsx / .csv)',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                          child: Text(
+                            'Format Templat Standard',
+                            style: context.teks.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
                             ),
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Unduh contoh templat Excel (.xlsx) yang sudah disusun sesuai kolom aplikasi.',
+                      style: context.teks.bodySmall?.copyWith(
+                        color: context.warna.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: Jarak.xs2),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 38,
+                      child: OutlinedButton.icon(
+                        onPressed: _memprosesUnduh ? null : _unduhTemplat,
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(Lengkung.kecil),
+                          ),
+                        ),
+                        icon: _memprosesUnduh
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.download_rounded, size: 16),
+                        label: Text(
+                          _memprosesUnduh ? 'Mengunduh…' : 'Unduh Format Excel (.xlsx)',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: Jarak.xs),
+
+              // Langkah 2: Pilih & Unggah Berkas
+              Container(
+                padding: const EdgeInsets.all(Jarak.xs),
+                decoration: BoxDecoration(
+                  color: _namaBerkasTerpilih != null
+                      ? a.suksesLembut
+                      : context.warna.surfaceContainerLowest,
+                  borderRadius: BorderRadius.circular(Lengkung.kontrol),
+                  border: Border.all(
+                    color: _namaBerkasTerpilih != null
+                        ? a.sukses.withAlpha(120)
+                        : context.warna.outline,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 22,
+                          height: 22,
+                          decoration: BoxDecoration(
+                            color: _namaBerkasTerpilih != null
+                                ? a.sukses
+                                : context.warna.primary,
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: const Text(
+                            '2',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Pilih Berkas (.xlsx / .csv)',
+                            style: context.teks.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: Jarak.xs2),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 38,
+                      child: OutlinedButton.icon(
+                        onPressed: _pilihBerkas,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _namaBerkasTerpilih != null
+                              ? a.sukses
+                              : context.warna.primary,
+                          side: BorderSide(
+                            color: _namaBerkasTerpilih != null
+                                ? a.sukses
+                                : context.warna.outline,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(Lengkung.kecil),
+                          ),
+                        ),
+                        icon: Icon(
+                          _namaBerkasTerpilih != null
+                              ? Icons.check_circle_rounded
+                              : Icons.note_add_rounded,
+                          size: 16,
+                        ),
+                        label: Text(
+                          _namaBerkasTerpilih ?? 'Pilih Berkas Excel/CSV',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
 
               if (_pesanGalat != null) ...[
-                const SizedBox(height: Jarak.sm),
+                const SizedBox(height: Jarak.xs),
                 Container(
-                  padding: const EdgeInsets.all(Jarak.xs),
+                  padding: const EdgeInsets.all(Jarak.xs2),
                   decoration: BoxDecoration(
-                    color: context.aksen.bahayaLembut,
+                    color: a.bahayaLembut,
                     borderRadius: BorderRadius.circular(Lengkung.kecil),
+                    border: Border.all(color: a.bahaya.withAlpha(80)),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.error_outline, size: 18, color: context.aksen.bahaya),
+                      Icon(Icons.error_outline_rounded, size: 16, color: a.bahaya),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           _pesanGalat!,
                           style: context.teks.bodySmall?.copyWith(
-                            color: context.aksen.bahaya,
+                            color: a.bahaya,
+                            fontSize: 11,
                           ),
                         ),
                       ),
@@ -251,22 +372,24 @@ class _DialogImporProdukState extends State<DialogImporProduk> {
               ],
 
               if (_pesanSukses != null) ...[
-                const SizedBox(height: Jarak.sm),
+                const SizedBox(height: Jarak.xs),
                 Container(
-                  padding: const EdgeInsets.all(Jarak.xs),
+                  padding: const EdgeInsets.all(Jarak.xs2),
                   decoration: BoxDecoration(
-                    color: context.aksen.suksesLembut,
+                    color: a.suksesLembut,
                     borderRadius: BorderRadius.circular(Lengkung.kecil),
+                    border: Border.all(color: a.sukses.withAlpha(80)),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.check_circle_outline, size: 18, color: context.aksen.sukses),
+                      Icon(Icons.check_circle_outline_rounded, size: 16, color: a.sukses),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           _pesanSukses!,
                           style: context.teks.bodySmall?.copyWith(
-                            color: context.aksen.sukses,
+                            color: a.sukses,
+                            fontSize: 11,
                           ),
                         ),
                       ),
@@ -276,12 +399,89 @@ class _DialogImporProdukState extends State<DialogImporProduk> {
               ],
 
               if (_ringkasan != null) ...[
-                const SizedBox(height: Jarak.xs),
-                Text(
-                  'Berhasil: ${_ringkasan!['berhasil']} produk | Gagal: ${_ringkasan!['gagal']} baris',
-                  style: context.teks.bodySmall?.copyWith(
-                    color: context.warna.onSurfaceVariant,
-                    fontWeight: FontWeight.bold,
+                const SizedBox(height: Jarak.xs2),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: context.warna.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(Lengkung.kecil),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Berhasil: ${_ringkasan!['berhasil'] ?? 0} produk',
+                            style: context.teks.bodySmall?.copyWith(
+                              color: a.sukses,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            'Gagal: ${_ringkasan!['gagal'] ?? 0} baris',
+                            style: context.teks.bodySmall?.copyWith(
+                              color: (_ringkasan!['gagal'] ?? 0) > 0
+                                  ? a.bahaya
+                                  : context.warna.onSurfaceVariant,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if ((_ringkasan!['gagal'] ?? 0) > 0 &&
+                          _ringkasan!['rincianGagal'] != null) ...[
+                        const SizedBox(height: 6),
+                        const Divider(height: 1),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Penyebab Gagal:',
+                          style: context.teks.labelSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: a.bahaya,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          (_ringkasan!['rincianGagal'] as List).isNotEmpty
+                              ? ((_ringkasan!['rincianGagal'][0] as Map)['alasan'] as String? ??
+                                  'Batas kuota produk paket Gratis tercapai.')
+                              : 'Batas kuota produk paket Gratis tercapai.',
+                          style: context.teks.bodySmall?.copyWith(
+                            color: context.warna.onSurfaceVariant,
+                            fontSize: 11,
+                          ),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 36,
+                          child: FilledButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              ModalFiturTerkunci.tampilkan(
+                                context,
+                                jenis: JenisFiturTerkunci.batasProduk,
+                              );
+                            },
+                            style: FilledButton.styleFrom(
+                              backgroundColor: context.warna.primary,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(Lengkung.kecil),
+                              ),
+                            ),
+                            icon: const Icon(Icons.workspace_premium_rounded, size: 16),
+                            label: const Text(
+                              'Upgrade Langganan Sekarang',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ],

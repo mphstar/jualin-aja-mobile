@@ -229,40 +229,42 @@ class LembarStruk extends StatelessWidget {
 }
 
   Future<void> _cetak(BuildContext context) async {
-    final pesan = ScaffoldMessenger.of(context);
-    Navigator.of(context).pop();
     try {
       final toko = await Repositori.toko();
       final pengaturan = await Repositori.pengaturanStruk();
+      final langganan = await Repositori.langganan();
       if (!context.mounted) return;
       await PencetakStruk.cetakOtomatisBluetooth(
         context,
         toko: toko,
         pengaturan: pengaturan,
         transaksi: transaksi,
+        langganan: langganan,
       );
     } catch (e) {
-      pesan.showSnackBar(
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Gagal mencetak struk: $e')),
       );
     }
   }
 
   Future<void> _bagikan(BuildContext context) async {
-    final pesan = ScaffoldMessenger.of(context);
-    Navigator.of(context).pop();
     try {
       final toko = await Repositori.toko();
       final pengaturan = await Repositori.pengaturanStruk();
+      final langganan = await Repositori.langganan();
       if (!context.mounted) return;
       await PencetakStruk.bagikanStruk(
         context,
         toko: toko,
         pengaturan: pengaturan,
         transaksi: transaksi,
+        langganan: langganan,
       );
     } catch (e) {
-      pesan.showSnackBar(
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Gagal membagikan struk: $e')),
       );
     }

@@ -141,6 +141,8 @@ abstract final class Repositori {
       j['langganan'] as Map<String, dynamic>,
     );
 
+    await muatSesiKasirAktif();
+
     return (profil: profil, toko: toko, langganan: langganan);
   }
 
@@ -163,6 +165,8 @@ abstract final class Repositori {
       j['langganan'] as Map<String, dynamic>,
     );
 
+    await muatSesiKasirAktif();
+
     return (profil: profil, toko: toko, langganan: langganan);
   }
 
@@ -174,6 +178,9 @@ abstract final class Repositori {
       // Kalau gagal, tetap hapus token lokal.
     }
     await api.hapusToken();
+    final sp = await SharedPreferences.getInstance();
+    await sp.remove('sesi_kasir_aktif');
+    sesiKasirAktif.value = null;
   }
 
   /// Cek sesi yang masih tersimpan.
@@ -188,10 +195,21 @@ abstract final class Repositori {
       final langganan = langgananDariJson(
         j['langganan'] as Map<String, dynamic>,
       );
+
+      // Selalu muat sesi kasir aktif toko dari server backend
+      await muatSesiKasirAktif();
+
       return (profil: profil, toko: toko, langganan: langganan);
-    } on GagalMuat {
-      // Token sudah tidak sah.
-      await api.hapusToken();
+    } on GagalMuat catch (e) {
+      // HANYA hapus token jika server mengonfirmasi token sudah tidak sah (401 Unauthenticated)
+      if (e.pesan.contains('Sesi berakhir') || e.pesan.contains('Silakan masuk')) {
+        await api.hapusToken();
+        final sp = await SharedPreferences.getInstance();
+        await sp.remove('sesi_kasir_aktif');
+        sesiKasirAktif.value = null;
+      }
+      return null;
+    } catch (_) {
       return null;
     }
   }
@@ -289,6 +307,9 @@ abstract final class Repositori {
   // -------------------------------------------------------------------------
 
   static Future<RingkasanBeranda> beranda() async {
+    // Sinkronkan sesi kasir aktif dari server backend tiap kali beranda dimuat
+    await muatSesiKasirAktif();
+
     final j = await api.get('/beranda');
     final langganan = langgananDariJson(
       j['langganan'] as Map<String, dynamic>,
@@ -420,6 +441,11 @@ abstract final class Repositori {
     return produkDariJson(j);
   }
 
+  static Future<void> hapusProduk(String id) async {
+    await api.delete('/produk/$id');
+    revisiData.value++;
+  }
+
   static Future<Kategori> simpanKategori(Kategori kategori) async {
     final baru = int.tryParse(kategori.id) == null;
 
@@ -491,15 +517,18 @@ abstract final class Repositori {
   }
 
   static Future<PengaturanStruk> simpanPengaturanStruk(
-    PengaturanStruk pengaturan,
+    PengaturanStruk p,
   ) async {
     final j = await api.put('/toko/struk', {
-      'kepala': pengaturan.kepala,
-      'kaki': pengaturan.kaki,
-      'tampilkan_alamat': pengaturan.tampilkanAlamat,
-      'tampilkan_telepon': pengaturan.tampilkanTelepon,
-      'tampilkan_nama_kasir': pengaturan.tampilkanNamaKasir,
-      'lebar': pengaturan.lebar == LebarKertas.mm58 ? 'MM58' : 'MM80',
+      'kepala': p.kepala,
+      'kaki': p.kaki,
+      'tampilkanAlamat': p.tampilkanAlamat,
+      'tampilkanTelepon': p.tampilkanTelepon,
+      'tampilkanNamaKasir': p.tampilkanNamaKasir,
+      'lebar': switch (p.lebar) {
+        LebarKertas.mm58 => '58mm',
+        LebarKertas.mm80 => '80mm',
+      },
     });
     revisiData.value++;
     return pengaturanStrukDariJson(j);
@@ -550,14 +579,25 @@ abstract final class Repositori {
     String? modeFilter,
     DateTimeRange? customRange,
   }) async {
-    final query = <String, String>{};
+    final Map<String, String> query = {};
     if (customRange != null) {
-      query['dari'] = customRange.start.toIso8601String();
-      query['sampai'] = customRange.end.toIso8601String();
+      final dariStr = customRange.start.toIso8601String().substring(0, 10);
+      final sampaiStr = customRange.end.toIso8601String().substring(0, 10);
+      query['dari'] = dariStr;
+      query['sampai'] = sampaiStr;
+      query['mulai'] = dariStr;
+      query['selesai'] = sampaiStr;
+      if (modeFilter != null && modeFilter.isNotEmpty) {
+        query['periode'] = modeFilter;
+      }
     } else if (modeFilter != null && modeFilter.isNotEmpty) {
       query['periode'] = modeFilter;
     } else {
-      query['periode'] = periodeKeString(periode ?? Periode.tujuhHari);
+      query['periode'] = switch (periode ?? Periode.tujuhHari) {
+        Periode.hariIni => 'HARI_INI',
+        Periode.tujuhHari => 'TUJUH_HARI',
+        Periode.tigaPuluhHari => 'TIGA_PULUH_HARI',
+      };
     }
 
     final j = await api.get('/laporan', query);
@@ -573,12 +613,16 @@ abstract final class Repositori {
   static Future<SesiKasir?> muatSesiKasirAktif() async {
     try {
       final json = await api.get('/sesi-kasir/aktif');
+      final sp = await SharedPreferences.getInstance();
       if (json['data'] != null) {
         final sesi = SesiKasir.fromJson(json['data'] as Map<String, dynamic>);
         sesiKasirAktif.value = sesi;
-        final sp = await SharedPreferences.getInstance();
         await sp.setString('sesi_kasir_aktif', jsonEncode(sesi.toJson()));
         return sesi;
+      } else {
+        await sp.remove('sesi_kasir_aktif');
+        sesiKasirAktif.value = null;
+        return null;
       }
     } catch (_) {}
 
