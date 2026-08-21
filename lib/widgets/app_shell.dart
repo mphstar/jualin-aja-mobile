@@ -50,7 +50,7 @@ class AppShell extends StatelessWidget {
       ikonAktif: Icons.bar_chart,
     ),
     TujuanNav(
-      label: 'Resep',
+      label: 'Pustaka',
       ikon: Icons.menu_book_outlined,
       ikonAktif: Icons.menu_book,
     ),

@@ -22,7 +22,7 @@ import 'screens/kasir_screen.dart';
 import 'screens/laporan_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/produk_screen.dart';
-import 'screens/resep_screen.dart';
+import 'screens/pustaka_screen.dart';
 import 'screens/sambutan_screen.dart';
 import 'theme/app_theme.dart';
 import 'theme/tokens.dart';
@@ -203,7 +203,7 @@ class _BerandaState extends State<Beranda> {
         0 => BerandaScreen(onBukaKasir: _bukaKasir, onKeTab: _keTab),
         1 => const ProdukScreen(),
         2 => const LaporanScreen(),
-        3 => ResepScreen(onKeAkun: () => _keTab(4)),
+        3 => PustakaScreen(onKeAkun: () => _keTab(4)),
         _ => AkunScreen(
           onGantiTema: widget.onGantiTema,
           gelap: widget.gelap,

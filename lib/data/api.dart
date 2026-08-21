@@ -278,6 +278,37 @@ Future<({Uint8List bytes, String? filename})> getBytes(
   }
 }
 
+/// GET bytes dari URL penuh (mis. tautan berkas publik) dengan token bearer.
+///
+/// Dipakai untuk merender PDF pratinjau di memori, bukan untuk menyimpan
+/// berkas ke perangkat.
+Future<Uint8List> getBytesUrl(String url) async {
+  try {
+    final respons = await http.get(
+      Uri.parse(url),
+      headers: {
+        'Accept': 'application/pdf, application/octet-stream',
+        if (_token != null) 'Authorization': 'Bearer $_token',
+      },
+    ).timeout(_timeout);
+
+    if (respons.statusCode == 401) {
+      hapusToken();
+      throw const GagalMuat('Sesi berakhir. Silakan masuk kembali.');
+    }
+
+    if (respons.statusCode >= 300) {
+      throw const GagalMuat('Tidak dapat memuat berkas.');
+    }
+
+    return respons.bodyBytes;
+  } on SocketException catch (e) {
+    _gagalJaringan(e);
+  } on http.ClientException catch (e) {
+    _gagalJaringan(e);
+  }
+}
+
 /// POST multipart upload file.
 Future<Map<String, dynamic>> uploadFile(
   String path,

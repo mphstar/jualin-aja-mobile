@@ -227,15 +227,23 @@ Tagihan tagihanDariJson(Map<String, dynamic> j) => Tagihan(
 // Ebook (← EbookPosResource)
 // ---------------------------------------------------------------------------
 
-Ebook ebookDariJson(Map<String, dynamic> j) => Ebook(
-  id: j['id'].toString(),
-  judul: j['judul'] as String? ?? '',
-  kategori: j['kategoriLabel'] as String? ?? j['kategori'] as String? ?? '',
-  deskripsi: j['deskripsi'] as String? ?? '',
-  jumlahHalaman: _int(j['jumlahHalaman']),
-  ukuranMb: _double(j['ukuranMb']),
-  sudahDiunduh: _bool(j['bolehUnduh']),
-);
+Ebook ebookDariJson(Map<String, dynamic> j) {
+  final jenis = j['jenis'] as String?;
+
+  return Ebook(
+    id: j['id'].toString(),
+    jenis: jenis == 'PROMPT' ? JenisKonten.prompt : JenisKonten.resep,
+    judul: j['judul'] as String? ?? '',
+    kategori: j['kategoriLabel'] as String? ?? j['kategori'] as String? ?? '',
+    kategoriPrompt: j['kategoriPromptLabel'] as String? ??
+        j['kategoriPrompt'] as String?,
+    deskripsi: j['deskripsi'] as String? ?? '',
+    jumlahHalaman: _int(j['jumlahHalaman']),
+    ukuranMb: _double(j['ukuranMb']),
+    fileUrl: j['fileUrl'] as String?,
+    bolehUnduh: _bool(j['bolehUnduh']),
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Pengaturan Struk (← PengaturanStrukResource)

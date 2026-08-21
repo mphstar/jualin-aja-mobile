@@ -264,6 +264,20 @@ abstract final class Repositori {
         .toList();
   }
 
+  /// Buka (pratinjau) sebuah konten pustaka.
+  ///
+  /// Memanggil endpoint unduh agar akses tercatat di sisi server, lalu
+  /// mengembalikan tautan berkas yang bisa dirender langsung — tanpa perlu
+  /// mengunduh dan menyimpan file di perangkat.
+  static Future<String> bukaEbook(String id) async {
+    final j = await api.post('/resep/$id/unduh');
+    final url = j['fileUrl'] as String?;
+    if (url == null || url.isEmpty) {
+      throw const GagalMuat('Berkas belum tersedia.');
+    }
+    return url;
+  }
+
   // -------------------------------------------------------------------------
   // Langganan & pembayaran
   // -------------------------------------------------------------------------

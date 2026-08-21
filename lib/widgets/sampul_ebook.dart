@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../data/model.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 
-/// Sampul ebook yang dibangun dari huruf, bukan dari gambar.
+/// Sampul konten pustaka yang dibangun dari huruf, bukan dari gambar.
 ///
 /// Versi sebelumnya memakai petak foto kosong berikon buku — enam kotak abu
 /// yang sama persis berjajar ke bawah. Itu penyebab daftarnya terasa mati:
@@ -21,12 +22,12 @@ class SampulEbook extends StatelessWidget {
     super.key,
     required this.judul,
     required this.kategori,
-    this.sudahDiunduh = false,
+    this.jenis = JenisKonten.resep,
   });
 
   final String judul;
   final String kategori;
-  final bool sudahDiunduh;
+  final JenisKonten jenis;
 
   /// Tiga kata pertama. Judul utuh di sampul sekecil ini jadi bubur; tiga kata
   /// cukup untuk membedakan satu buku dari yang lain.
@@ -87,7 +88,7 @@ class SampulEbook extends StatelessWidget {
               ),
             ],
           ),
-          if (sudahDiunduh)
+          if (jenis == JenisKonten.prompt)
             Positioned(
               right: 0,
               top: 0,
@@ -95,11 +96,15 @@ class SampulEbook extends StatelessWidget {
                 width: 18,
                 height: 18,
                 decoration: BoxDecoration(
-                  color: a.sukses,
+                  color: a.atasFokusRedup,
                   shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
-                child: Icon(Icons.check, size: 12, color: a.atasFokus),
+                child: Icon(
+                  Icons.auto_awesome,
+                  size: 11,
+                  color: a.atasFokus,
+                ),
               ),
             ),
         ],

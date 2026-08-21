@@ -385,22 +385,37 @@ class PengaturanStruk {
 class Ebook {
   const Ebook({
     required this.id,
+    required this.jenis,
     required this.judul,
     required this.kategori,
     required this.deskripsi,
     required this.jumlahHalaman,
     required this.ukuranMb,
-    this.sudahDiunduh = false,
+    this.kategoriPrompt,
+    this.fileUrl,
+    this.bolehUnduh = false,
   });
 
   final String id;
+  final JenisKonten jenis;
   final String judul;
   final String kategori;
+  final String? kategoriPrompt;
   final String deskripsi;
   final int jumlahHalaman;
   final double ukuranMb;
-  final bool sudahDiunduh;
+  final String? fileUrl;
+  final bool bolehUnduh;
+
+  String get labelKategori => jenis == JenisKonten.prompt
+      ? (kategoriPrompt ?? 'Prompt')
+      : kategori;
 }
+
+/// Jenis konten pustaka: resep masakan atau prompt (mis. untuk menghasilkan
+/// gambar). Keduanya sama-sama PDF dan sama-sama bisa dilihat langsung di
+/// aplikasi tanpa diunduh.
+enum JenisKonten { resep, prompt }
 
 // ---------------------------------------------------------------------------
 // Langganan — aturan disalin dari PRD §4.1 dan §4.2

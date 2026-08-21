@@ -401,7 +401,7 @@ void main() {
       expect(tester.takeException(), isNull);
 
       final pakaiBilah = lebar < Ambang.ringkas;
-      for (final tujuan in ['Produk', 'Laporan', 'Resep', 'Akun', 'Beranda']) {
+      for (final tujuan in ['Produk', 'Laporan', 'Pustaka', 'Akun', 'Beranda']) {
         if (pakaiBilah) {
           await keTab(tester, tujuan);
         } else {
@@ -476,7 +476,7 @@ void main() {
     await ketuk(tester, find.text('Tampilan'));
     expect(tester.takeException(), isNull);
 
-    for (final tujuan in ['Beranda', 'Produk', 'Laporan', 'Resep', 'Akun']) {
+    for (final tujuan in ['Beranda', 'Produk', 'Laporan', 'Pustaka', 'Akun']) {
       await keTab(tester, tujuan);
       expect(tester.takeException(), isNull, reason: 'mode gelap di $tujuan');
     }

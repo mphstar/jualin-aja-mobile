@@ -357,6 +357,7 @@ List<Transaksi> _bangkitkanTransaksi() {
 const ebookContoh = <Ebook>[
   Ebook(
     id: 'e1',
+    jenis: JenisKonten.resep,
     judul: '50 Resep Minuman Kekinian',
     kategori: 'Minuman',
     deskripsi:
@@ -364,10 +365,10 @@ const ebookContoh = <Ebook>[
         'Lengkap dengan takaran dan tips penyajian.',
     jumlahHalaman: 53,
     ukuranMb: 12.4,
-    sudahDiunduh: true,
   ),
   Ebook(
     id: 'e2',
+    jenis: JenisKonten.resep,
     judul: 'Racikan Kopi Manual Brew untuk Kafe',
     kategori: 'Minuman',
     deskripsi:
@@ -378,6 +379,7 @@ const ebookContoh = <Ebook>[
   ),
   Ebook(
     id: 'e3',
+    jenis: JenisKonten.resep,
     judul: 'Menu Andalan Warung Makan Laris',
     kategori: 'Makanan Berat',
     deskripsi:
@@ -388,6 +390,7 @@ const ebookContoh = <Ebook>[
   ),
   Ebook(
     id: 'e4',
+    jenis: JenisKonten.resep,
     judul: 'Snack Gorengan Modal Kecil',
     kategori: 'Snack',
     deskripsi:
@@ -398,6 +401,7 @@ const ebookContoh = <Ebook>[
   ),
   Ebook(
     id: 'e5',
+    jenis: JenisKonten.resep,
     judul: 'Bumbu Dasar Serbaguna',
     kategori: 'Bumbu & Saus',
     deskripsi:
@@ -405,10 +409,10 @@ const ebookContoh = <Ebook>[
         'waktu persiapan harian.',
     jumlahHalaman: 36,
     ukuranMb: 6.8,
-    sudahDiunduh: true,
   ),
   Ebook(
     id: 'e6',
+    jenis: JenisKonten.resep,
     judul: 'Dessert Box & Pudding Praktis',
     kategori: 'Dessert',
     deskripsi:
@@ -416,6 +420,18 @@ const ebookContoh = <Ebook>[
         'untuk pesanan pre-order.',
     jumlahHalaman: 131,
     ukuranMb: 24.0,
+  ),
+  Ebook(
+    id: 'p1',
+    jenis: JenisKonten.prompt,
+    judul: 'Prompt Logo Usaha Kekinian',
+    kategori: '',
+    kategoriPrompt: 'Logo',
+    deskripsi:
+        'Prompt siap pakai untuk membuat logo usaha dengan AI, lengkap '
+        'dengan variasi gaya dan skema warna.',
+    jumlahHalaman: 22,
+    ukuranMb: 4.2,
   ),
 ];
 
