@@ -503,7 +503,8 @@ abstract final class Repositori {
 
   static Future<Toko> simpanToko(Toko toko) async {
     final j = await api.put('/toko', {
-      'nama_toko': toko.nama,
+      'nama': toko.nama,
+      'jenisUsaha': toko.jenisUsaha,
       'alamat': toko.alamat,
       'telepon': toko.telepon,
     });

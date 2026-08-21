@@ -46,7 +46,7 @@ class _Acak {
 const namaToko = 'Kopi Senja';
 const namaPemilik = 'Bintang Pratama';
 const emailPemilik = 'bintang@kopisenja.id';
-const jenisUsaha = 'Kafe';
+const jenisUsaha = 'KAFE';
 const kotaToko = 'Bandung';
 
 /// Data toko yang bisa disunting dari Akun · Data toko.

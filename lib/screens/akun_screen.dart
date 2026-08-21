@@ -110,7 +110,7 @@ class AkunScreen extends StatelessWidget {
                 _BarisMenu(
                   ikon: Icons.storefront_outlined,
                   judul: 'Data toko',
-                  keterangan: '${toko.jenisUsaha}${toko.alamat.isNotEmpty ? ' · ${toko.alamat}' : ''}',
+                  keterangan: '${labelJenisUsaha(toko.jenisUsaha)}${toko.alamat.isNotEmpty ? ' · ${toko.alamat}' : ''}',
                   onTekan: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(builder: (_) => const TokoScreen()),
                   ),

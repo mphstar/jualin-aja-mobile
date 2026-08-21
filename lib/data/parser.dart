@@ -136,7 +136,7 @@ Transaksi transaksiDariJson(Map<String, dynamic> j) => Transaksi(
 
 Toko tokoDariJson(Map<String, dynamic> j) => Toko(
   nama: j['nama'] as String? ?? '',
-  jenisUsaha: j['jenisUsahaLabel'] as String? ?? j['jenisUsaha'] as String? ?? '',
+  jenisUsaha: j['jenisUsaha'] as String? ?? '',
   alamat: j['alamat'] as String? ?? '',
   telepon: j['telepon'] as String? ?? '',
 );

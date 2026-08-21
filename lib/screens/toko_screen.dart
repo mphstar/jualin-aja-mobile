@@ -162,7 +162,7 @@ class _FormulirState extends State<_Formulir> {
                       children: [
                         for (final j in jenisUsahaPilihan)
                           ChoiceChip(
-                            label: Text(j),
+                            label: Text(labelJenisUsaha(j)),
                             selected: _jenis == j,
                             onSelected: (_) => setState(() => _jenis = j),
                           ),

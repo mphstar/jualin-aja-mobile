@@ -294,16 +294,31 @@ class Profil {
   );
 }
 
-/// Jenis usaha yang bisa dipilih. Sama dengan daftar di alur pembuka, supaya
-/// jawaban di sana tidak jadi nilai yang tidak dikenali di sini.
+/// Jenis usaha yang bisa dipilih. Nilainya adalah kode enum backend
+/// (`KAFE`, `RESTORAN`, …), sama seperti yang dikirim saat pendaftaran, supaya
+/// nilai yang sama bisa dikirim kembali ketika toko disunting.
 const jenisUsahaPilihan = <String>[
-  'Kafe',
-  'Restoran',
-  'Warung',
-  'Bakery',
-  'Kelontong',
-  'Lainnya',
+  'KAFE',
+  'RESTORAN',
+  'WARUNG_MAKAN',
+  'BAKERY',
+  'TOKO_KELONTONG',
+  'LAINNYA',
 ];
+
+/// Label tampilan untuk tiap jenis usaha, mengikuti kode enum backend.
+const jenisUsahaLabel = <String, String>{
+  'KAFE': 'Kafe',
+  'RESTORAN': 'Restoran',
+  'WARUNG_MAKAN': 'Warung Makan',
+  'BAKERY': 'Bakery',
+  'TOKO_KELONTONG': 'Toko Kelontong',
+  'LAINNYA': 'Lainnya',
+};
+
+/// Label tampilan untuk kode [value], atau [value] itu sendiri bila tak
+/// dikenali (mis. data lama) supaya tidak tampak kosong.
+String labelJenisUsaha(String value) => jenisUsahaLabel[value] ?? value;
 
 /// Lebar kertas printer termal. Dua ukuran ini yang beredar; angkanya
 /// menentukan berapa karakter yang muat per baris, jadi ia bukan sekadar
