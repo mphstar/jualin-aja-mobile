@@ -60,7 +60,7 @@ class _DialogImporProdukState extends State<DialogImporProduk> {
       if (!mounted) return;
       setState(() {
         _memprosesUnduh = false;
-        _pesanGalat = 'Gagal mengunduh format templat: $e';
+        _pesanGalat = _pesanGalatUnduh(e);
       });
     }
   }
@@ -81,7 +81,7 @@ class _DialogImporProdukState extends State<DialogImporProduk> {
       }
     } catch (e) {
       setState(() {
-        _pesanGalat = 'Gagal memilih berkas: $e';
+        _pesanGalat = _pesanGalatPilihBerkas(e);
       });
     }
   }
@@ -118,10 +118,38 @@ class _DialogImporProdukState extends State<DialogImporProduk> {
       if (!mounted) return;
       setState(() {
         _memprosesImpor = false;
-        _pesanGalat = 'Terjadi kesalahan saat mengimpor: $e';
+        _pesanGalat = _pesanGalatImpor(e);
       });
     }
   }
+
+  // -------------------------------------------------------------------------
+  // Pesan galat ramah — JANGAN pernah menampilkan `$e` mentah (mis. "Permission
+  // denied"). Pengguna hanya perlu tahu apa yang salah & apa yang harus
+  // dilakukan, bukan nama kelas pengecualian.
+  // -------------------------------------------------------------------------
+
+  static bool _izinDitolak(Object e) {
+    final teks = e.toString().toLowerCase();
+    return teks.contains('permission') ||
+        teks.contains('access is denied') ||
+        teks.contains('denied');
+  }
+
+  String _pesanGalatUnduh(Object e) => _izinDitolak(e)
+      ? 'Izin penyimpanan tidak diberikan. Berikan izin penyimpanan pada '
+            'aplikasi, lalu coba lagi.'
+      : 'Templat tidak berhasil diunduh. Periksa koneksi lalu coba lagi.';
+
+  String _pesanGalatPilihBerkas(Object e) => _izinDitolak(e)
+      ? 'Izin akses berkas tidak diberikan. Berikan izin pada aplikasi, lalu '
+            'coba lagi.'
+      : 'Berkas tidak bisa dipilih. Coba lagi.';
+
+  String _pesanGalatImpor(Object e) => _izinDitolak(e)
+      ? 'Izin akses berkas tidak diberikan. Berikan izin pada aplikasi, lalu '
+            'coba lagi.'
+      : 'Impor tidak berhasil. Periksa berkas lalu coba lagi.';
 
   @override
   Widget build(BuildContext context) {

@@ -3,6 +3,8 @@ import 'package:pdfx/pdfx.dart';
 
 import '../data/api.dart' as api;
 import '../theme/app_theme.dart';
+import '../theme/tokens.dart';
+import '../widgets/ilustrasi.dart';
 
 /// Pratinjau PDF langsung di aplikasi — tanpa mengunduh lalu menyimpan berkas.
 ///
@@ -77,18 +79,98 @@ class _BacaScreenState extends State<BacaScreen> {
       ),
       body: _galat
           ? Center(
-              child: Text(
-                'Gagal memuat berkas. Pastikan koneksi tersedia.',
-                style: context.teks.bodyMedium,
+              child: Padding(
+                padding: const EdgeInsets.all(Jarak.xl),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Ilustrasi(
+                      gambar: GambarIlustrasi.laporan,
+                      lebarMaks: 200,
+                    ),
+                    const SizedBox(height: Jarak.md),
+                    Text(
+                      'Gagal memuat berkas. Pastikan koneksi tersedia.',
+                      textAlign: TextAlign.center,
+                      style: context.teks.bodyMedium?.copyWith(
+                        color: context.warna.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             )
           : _controller == null
-              ? const Center(child: CircularProgressIndicator())
+              ? const _PemuatBerkas()
               : PdfViewPinch(
                   controller: _controller!,
                   onPageChanged: (halaman) =>
                       setState(() => _halaman = halaman),
                 ),
+    );
+  }
+}
+
+/// Pemuat berkas PDF yang lebih hidup daripada pemintal kosong.
+///
+/// Ilustrasi vektor + salinan singkat, dan denyut halus pada teks supaya
+/// jelas bahwa sesuatu sedang terjadi — bukan layar yang menggantung.
+class _PemuatBerkas extends StatefulWidget {
+  const _PemuatBerkas();
+
+  @override
+  State<_PemuatBerkas> createState() => _PemuatBerkasState();
+}
+
+class _PemuatBerkasState extends State<_PemuatBerkas>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _denyut = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _denyut.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(Jarak.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Ilustrasi(
+              gambar: GambarIlustrasi.laporan,
+              lebarMaks: 200,
+            ),
+            const SizedBox(height: Jarak.md),
+            AnimatedBuilder(
+              animation: _denyut,
+              builder: (context, child) {
+                final double opasitas = Tween<double>(begin: 0.35, end: 1)
+                    .evaluate(
+                      CurvedAnimation(
+                        parent: _denyut,
+                        curve: Curves.easeInOut,
+                      ),
+                    );
+
+                return Opacity(opacity: opasitas, child: child);
+              },
+              child: Text(
+                'Menyiapkan berkas…',
+                style: context.teks.bodyMedium?.copyWith(
+                  color: context.warna.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

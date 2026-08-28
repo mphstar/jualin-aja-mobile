@@ -23,11 +23,16 @@ class SampulEbook extends StatelessWidget {
     required this.judul,
     required this.kategori,
     this.jenis = JenisKonten.resep,
+    this.coverUrl,
   });
 
   final String judul;
   final String kategori;
   final JenisKonten jenis;
+
+  /// URL gambar sampul yang diunggah admin. Kalau ada, ditampilkan apa adanya;
+  /// tanpa ini, sampul dibangun dari huruf (lihat [_teksSampul]).
+  final String? coverUrl;
 
   /// Tiga kata pertama. Judul utuh di sampul sekecil ini jadi bubur; tiga kata
   /// cukup untuk membedakan satu buku dari yang lain.
@@ -38,6 +43,36 @@ class SampulEbook extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cover = coverUrl;
+    if (cover != null && cover.isNotEmpty) {
+      return _gambarSampul(cover);
+    }
+
+    return _teksSampul(context);
+  }
+
+  /// Sampul dari foto unggahan. Kalau gagal dimuat (mis. koneksi), jatuh ke
+  /// sampul huruf supaya kartu tidak pernah kosong.
+  Widget _gambarSampul(String url) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(Lengkung.kecil),
+      child: Image.network(
+        url,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _teksSampul(context),
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return _teksSampul(context);
+        },
+      ),
+    );
+  }
+
+  /// Sampul dari huruf — dipakai bila tidak ada foto sampul.
+  ///
+  /// Tiga kata pertama. Judul utuh di sampul sekecil ini jadi bubur; tiga kata
+  /// cukup untuk membedakan satu buku dari yang lain.
+  Widget _teksSampul(BuildContext context) {
     final a = context.aksen;
     return Container(
       decoration: BoxDecoration(

@@ -503,7 +503,12 @@ class _BarisAksiProduk extends StatelessWidget {
               if (!context.mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Gagal mengekspor data produk: $e'),
+                  content: Text(
+                    e.toString().toLowerCase().contains('permission')
+                        ? 'Izin penyimpanan tidak diberikan. Berikan izin pada '
+                              'aplikasi, lalu coba lagi.'
+                        : 'Ekspor tidak berhasil. Periksa koneksi lalu coba lagi.',
+                  ),
                 ),
               );
             }

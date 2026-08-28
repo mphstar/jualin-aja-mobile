@@ -68,23 +68,7 @@ class AppShell extends StatelessWidget {
     if (lebar < Ambang.ringkas) {
       return Scaffold(
         body: SafeArea(bottom: false, child: anak),
-        bottomNavigationBar: DecoratedBox(
-          decoration: BoxDecoration(
-            border: Border(top: BorderSide(color: context.warna.outline)),
-          ),
-          child: NavigationBar(
-            selectedIndex: indeks,
-            onDestinationSelected: onPindah,
-            destinations: [
-              for (final t in tujuan)
-                NavigationDestination(
-                  icon: Icon(t.ikon),
-                  selectedIcon: Icon(t.ikonAktif),
-                  label: t.label,
-                ),
-            ],
-          ),
-        ),
+        bottomNavigationBar: _BilahBawah(indeks: indeks, onPindah: onPindah),
       );
     }
 
@@ -149,6 +133,105 @@ class _MerekRail extends StatelessWidget {
         Jarak.md,
       ),
       child: TandaMerekBackdoor(ukuran: 40, berlabel: melebar),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Bilah navigasi bawah (ponsel) — mengambang, item aktif berkapsul tinta
+// ---------------------------------------------------------------------------
+
+class _BilahBawah extends StatelessWidget {
+  const _BilahBawah({required this.indeks, required this.onPindah});
+
+  final int indeks;
+  final ValueChanged<int> onPindah;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: context.warna.surfaceContainerLowest,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(Lengkung.panel),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: context.warna.outline.withValues(alpha: 0.12),
+            blurRadius: 14,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          child: Row(
+            children: [
+              for (var i = 0; i < AppShell.tujuan.length; i++)
+                Expanded(
+                  child: _ItemBilah(
+                    aktif: i == indeks,
+                    tujuan: AppShell.tujuan[i],
+                    onTekan: () => onPindah(i),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ItemBilah extends StatelessWidget {
+  const _ItemBilah({
+    required this.aktif,
+    required this.tujuan,
+    required this.onTekan,
+  });
+
+  final bool aktif;
+  final TujuanNav tujuan;
+  final VoidCallback onTekan;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = context.aksen;
+    final warna =
+        aktif ? a.fokus : context.warna.onSurfaceVariant;
+
+    return Semantics(
+      button: true,
+      selected: aktif,
+      child: InkWell(
+        onTap: onTekan,
+        borderRadius: BorderRadius.circular(Lengkung.kontrol),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                aktif ? tujuan.ikonAktif : tujuan.ikon,
+                size: 22,
+                color: warna,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                tujuan.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: context.teks.labelSmall?.copyWith(
+                  fontWeight: aktif ? FontWeight.w700 : FontWeight.w500,
+                  color: warna,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../screens/perpanjang_screen.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
+import 'ikon_kotak.dart';
 import 'tombol_pil.dart';
 
 /// Jenis fitur yang sedang terkunci dan memerlukan upgrade paket.
@@ -13,7 +14,12 @@ enum JenisFiturTerkunci {
   kakiStruk,
 }
 
-/// Bottom sheet interaktif dan atraktif untuk memotivasi pengguna melakukan upgrade langganan.
+/// Dialog fitur terkunci — lembar bawah yang jujur dan tenang, lalu mengarahkan
+/// ke halaman pembayaran langganan (`PerpanjangScreen`).
+///
+/// Mengikuti `design.md`: permukaan datar, tanpa gradien/bayangan; kroma hanya
+/// untuk aksi utama. Perannya bukan menjual dengan hiasan, tapi menjawab satu
+/// pertanyaan: "fitur ini butuh apa, dan bagaimana saya mendapatkannya?".
 class ModalFiturTerkunci extends StatelessWidget {
   const ModalFiturTerkunci({
     super.key,
@@ -37,7 +43,7 @@ class ModalFiturTerkunci extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (judul, subjudul, ikon, poinBenefit) = _isiContent();
+    final (judul, keterangan, ikon, poinBenefit) = _isiContent();
 
     return Container(
       decoration: BoxDecoration(
@@ -56,107 +62,47 @@ class ModalFiturTerkunci extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Bilah pegangan atas
           Center(
             child: Container(
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: context.warna.onSurfaceVariant.withAlpha(76),
+                color: context.warna.onSurfaceVariant.withValues(alpha: 0.4),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
           ),
           const SizedBox(height: Jarak.md),
-
-          // Spanduk Utama dengan Aksen Visual Premium & Glow
-          Container(
-            padding: const EdgeInsets.all(Jarak.md),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  context.warna.primaryContainer,
-                  context.warna.surfaceContainerHigh,
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(Lengkung.kontrol),
-              border: Border.all(
-                color: context.warna.primary.withAlpha(60),
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 54,
-                  height: 54,
-                  decoration: BoxDecoration(
-                    color: context.warna.primary,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: context.warna.primary.withAlpha(90),
-                        blurRadius: 14,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    ikon,
-                    color: context.warna.onPrimary,
-                    size: 28,
-                  ),
-                ),
-                const SizedBox(width: Jarak.sm),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        judul,
-                        style: context.teks.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          height: 1.25,
-                        ),
-                      ),
-                      const SizedBox(height: Jarak.xs3),
-                      Text(
-                        subjudul,
-                        style: context.teks.bodySmall?.copyWith(
-                          color: context.warna.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: Jarak.md),
-
-          // Judul Seksi Keunggulan
           Row(
             children: [
-              Icon(
-                Icons.stars_rounded,
-                size: 20,
-                color: context.warna.primary,
-              ),
-              const SizedBox(width: Jarak.xs2),
-              Text(
-                'Keunggulan Upgrade Paket:',
-                style: context.teks.labelLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
+              IkonKotak(ikon, nada: NadaIkon.tinta, ukuran: 44),
+              const SizedBox(width: Jarak.xs),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      judul,
+                      style: context.teks.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: Jarak.xs3),
+                    Text(
+                      keterangan,
+                      style: context.teks.bodySmall?.copyWith(
+                        color: context.warna.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: Jarak.xs),
-
-          // Daftar Poin Benefit
-          ...poinBenefit.map(
-            (poin) => Padding(
+          const SizedBox(height: Jarak.md),
+          for (final poin in poinBenefit)
+            Padding(
               padding: const EdgeInsets.only(bottom: Jarak.xs2),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -164,9 +110,9 @@ class ModalFiturTerkunci extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
                     child: Icon(
-                      Icons.check_circle_rounded,
+                      Icons.check,
                       size: 18,
-                      color: context.warna.primary,
+                      color: context.warna.onSurfaceVariant,
                     ),
                   ),
                   const SizedBox(width: Jarak.xs2),
@@ -181,12 +127,9 @@ class ModalFiturTerkunci extends StatelessWidget {
                 ],
               ),
             ),
-          ),
           const SizedBox(height: Jarak.md),
-
-          // Tombol Utama Ke Pembelian Langganan
           TombolPil(
-            label: 'Tingkatkan Paket Sekarang',
+            label: 'Tingkatkan Paket',
             onTekan: () {
               Navigator.of(context).pop();
               Navigator.of(context).push(
@@ -197,16 +140,12 @@ class ModalFiturTerkunci extends StatelessWidget {
             },
           ),
           const SizedBox(height: Jarak.xs2),
-
-          // Tombol Batal/Nanti Saja
           Center(
             child: TextButton(
               onPressed: () => Navigator.of(context).pop(),
               child: Text(
-                'Nanti Saja',
-                style: TextStyle(
-                  color: context.warna.onSurfaceVariant,
-                ),
+                'Nanti saja',
+                style: TextStyle(color: context.warna.onSurfaceVariant),
               ),
             ),
           ),
@@ -219,46 +158,46 @@ class ModalFiturTerkunci extends StatelessWidget {
     switch (jenis) {
       case JenisFiturTerkunci.resep:
         return (
-          'Buka 100+ Resep Rahasia',
-          'Tersedia eksklusif untuk pengguna paket Langganan aktif.',
-          Icons.menu_book_rounded,
+          'Buka Pustaka Resep',
+          'Resep dan prompt hanya untuk paket Langganan aktif.',
+          Icons.auto_stories_rounded,
           [
-            'Akses 100+ Ebook resep makanan & minuman siap jual',
-            'Lengkap dengan takaran bahan presisi & estimasi HPP',
-            'Update resep baru tanpa biaya tambahan',
+            'Akses ebook resep & prompt siap pakai',
+            'Takaran bahan presisi dan estimasi HPP',
+            'Konten baru tanpa biaya tambahan',
           ],
         );
       case JenisFiturTerkunci.voucher:
         return (
-          'Buka Fitur Diskon & Voucher',
-          'Tersedia untuk pengguna paket Trial & Langganan.',
+          'Buka Diskon & Voucher',
+          'Fitur diskon untuk paket Trial & Langganan.',
           Icons.confirmation_number_rounded,
           [
-            'Buat potongan harga persentase atau nominal tunai',
-            'Tingkatkan transaksi & daya tarik promosi toko',
-            'Otomatis terhitung di struk kasir saat checkout',
+            'Potongan harga persentase atau nominal',
+            'Dorong transaksi dan promosi toko',
+            'Otomatis terhitung di struk kasir',
           ],
         );
       case JenisFiturTerkunci.batasProduk:
         return (
-          'Buka Batas Maksimal Produk',
-          'Akun Gratis dibatasi 5 produk. Upgrade untuk produk tanpa batas.',
+          'Buka Produk Tanpa Batas',
+          'Akun Gratis dibatasi 5 produk. Upgrade untuk tanpa batas.',
           Icons.inventory_2_rounded,
           [
-            'Tambah produk & varian tanpa batas jumlah',
-            'Kelola stok barang otomatis & peringatan stok habis',
-            'Fitur impor & ekspor katalog lewat berkas Excel',
+            'Tambah produk & varian tanpa batas',
+            'Kelola stok dan peringatan stok habis',
+            'Impor & ekspor katalog via Excel',
           ],
         );
       case JenisFiturTerkunci.kakiStruk:
         return (
-          'Kustomisasi Teks Kaki Struk',
-          'Teks bawaan "Copyright by JualinAja". Upgrade ke Pro untuk kustomisasi!',
+          'Kustomisasi Kaki Struk',
+          'Teks bawaan "Copyright by JualinAja". Upgrade untuk mengubahnya.',
           Icons.receipt_long_rounded,
           [
-            'Ubah teks kaki (footer) struk sesuai branding toko Anda',
-            'Sampaikan ucapan terima kasih, pesan khusus, atau akun medsos toko',
-            'Bebas ubah kapan saja untuk cetak Bluetooth & PDF struk',
+            'Ubah teks kaki struk sesuai branding toko',
+            'Ucapan terima kasih, pesan, atau akun medsos',
+            'Bebas ubah untuk cetak Bluetooth & PDF struk',
           ],
         );
     }

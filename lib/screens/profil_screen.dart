@@ -4,7 +4,7 @@ import '../data/model.dart';
 import '../data/repositori.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
-import '../util/format.dart';
+import '../widgets/avatar_online.dart';
 import '../widgets/bingkai.dart';
 import '../widgets/isian_uang.dart' show BarisGalat;
 import '../widgets/kartu.dart';
@@ -225,23 +225,11 @@ class _Avatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final a = context.aksen;
     final terisi = nama.trim().isNotEmpty;
 
     return Row(
       children: [
-        Container(
-          width: 58,
-          height: 58,
-          decoration: BoxDecoration(color: a.fokus, shape: BoxShape.circle),
-          alignment: Alignment.center,
-          child: terisi
-              ? Text(
-                  inisial(nama),
-                  style: context.teks.titleLarge?.copyWith(color: a.atasFokus),
-                )
-              : Icon(Icons.person_outline, color: a.atasFokus),
-        ),
+        AvatarOnline(nama: nama, ukuran: 58),
         const SizedBox(width: Jarak.xs),
         Expanded(
           child: Column(

@@ -96,7 +96,12 @@ Map<String, dynamic> _proses(http.Response respons) {
     throw GagalMuat(teks);
   }
 
-  final pesan = badan['message'] as String? ?? 'Terjadi kesalahan.';
+  // Pesan dari server kadang berisi string kosong (mis. 404 "message": "").
+  // Jangan pernah meneruskannya — toast kosong tidak memberi tahu apa pun.
+  final pesanDariServer = badan['message'] as String?;
+  final pesan = (pesanDariServer != null && pesanDariServer.isNotEmpty)
+      ? pesanDariServer
+      : 'Terjadi kesalahan.';
   throw GagalMuat(pesan);
 }
 

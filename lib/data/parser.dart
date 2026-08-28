@@ -240,6 +240,7 @@ Ebook ebookDariJson(Map<String, dynamic> j) {
     deskripsi: j['deskripsi'] as String? ?? '',
     jumlahHalaman: _int(j['jumlahHalaman']),
     ukuranMb: _double(j['ukuranMb']),
+    coverUrl: j['coverUrl'] as String?,
     fileUrl: j['fileUrl'] as String?,
     bolehUnduh: _bool(j['bolehUnduh']),
   );

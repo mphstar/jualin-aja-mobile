@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../util/format.dart';
 import '../widgets/app_shell.dart';
+import '../widgets/avatar_online.dart';
 import '../widgets/bingkai.dart';
 import '../widgets/ikon_kotak.dart';
 import '../widgets/kartu.dart';
@@ -292,22 +293,12 @@ class _KepalaProfil extends StatelessWidget {
         ],
       ),
       isi: (context, data) {
-        final a = context.aksen;
         final profil = data.profil;
         final toko = data.toko;
 
         return Row(
           children: [
-            Container(
-              width: 58,
-              height: 58,
-              decoration: BoxDecoration(color: a.fokus, shape: BoxShape.circle),
-              alignment: Alignment.center,
-              child: Text(
-                inisial(profil.nama),
-                style: context.teks.titleLarge?.copyWith(color: a.atasFokus),
-              ),
-            ),
+            AvatarOnline(nama: profil.nama, ukuran: 58),
             const SizedBox(width: Jarak.xs),
             Expanded(
               child: Column(

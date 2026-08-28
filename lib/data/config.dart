@@ -15,7 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// - Perangkat fisik di jaringan lokal: `http://<IP-komputer>:8000`
 const basisApiBawaan = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'https://de0c-2a09-bac5-3a1b-30c8-00-4dc-a6.ngrok-free.app',
+  defaultValue: 'https://a90b-2a09-bac5-3a18-18c8-00-278-c5.ngrok-free.app',
 );
 
 /// URL dasar API yang aktif saat ini.

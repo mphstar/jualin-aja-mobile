@@ -36,10 +36,12 @@ class Bingkai<T> extends StatefulWidget {
   final Widget? saatKosong;
 
   @override
-  State<Bingkai<T>> createState() => _BingkaiState<T>();
+  State<Bingkai<T>> createState() => BingkaiState<T>();
 }
 
-class _BingkaiState<T> extends State<Bingkai<T>> {
+/// State [Bingkai] yang dipublikasikan agar tab bisa menarik-untuk-segar
+/// (pull-to-refresh) dan memuat ulang data dari server.
+class BingkaiState<T> extends State<Bingkai<T>> {
   Muatan<T> _muatan = const Memuat();
 
   /// Penghitung generasi. Tanpa ini, jawaban dari permintaan lama yang datang
@@ -67,6 +69,16 @@ class _BingkaiState<T> extends State<Bingkai<T>> {
     if (!mounted) return;
     setState(() => _muatan = const Memuat());
     _muat();
+  }
+
+  /// Muat ulang lalu tunggu selesai — dipakai `RefreshIndicator.onRefresh`.
+  ///
+  /// Sengaja TIDAK menampilkan rangka (skeleton): menukar isi dengan rangka
+  /// di tengah gestur justru melepas `RefreshIndicator` dari pohon widget dan
+  /// menggagalkan animasinya. Isi lama tetap terlihat hingga data baru tiba.
+  Future<void> muatUlangTunggu() async {
+    if (!mounted) return;
+    await _muat();
   }
 
   Future<void> _muat() async {

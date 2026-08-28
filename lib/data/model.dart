@@ -392,6 +392,7 @@ class Ebook {
     required this.jumlahHalaman,
     required this.ukuranMb,
     this.kategoriPrompt,
+    this.coverUrl,
     this.fileUrl,
     this.bolehUnduh = false,
   });
@@ -404,6 +405,9 @@ class Ebook {
   final String deskripsi;
   final int jumlahHalaman;
   final double ukuranMb;
+
+  /// URL gambar sampul yang diunggah admin; null kalau belum ada.
+  final String? coverUrl;
   final String? fileUrl;
   final bool bolehUnduh;
 
