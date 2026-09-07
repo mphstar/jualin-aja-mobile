@@ -183,20 +183,9 @@ StatusBayar _statusBayar(String? v) => switch (v) {
   _ => StatusBayar.menunggu,
 };
 
-SaluranBayar _saluranBayar(String? v) => switch (v) {
-  'QRIS' => SaluranBayar.qris,
-  'VA_BCA' => SaluranBayar.vaBca,
-  'VA_MANDIRI' => SaluranBayar.vaMandiri,
-  'GOPAY' => SaluranBayar.gopay,
-  _ => SaluranBayar.qris,
-};
-
-/// Nama enum saluran bayar untuk dikirim ke backend.
+/// Nama enum saluran untuk dikirim ke backend (nilai `paymentMethod` Mayar).
 String saluranKeString(SaluranBayar s) => switch (s) {
-  SaluranBayar.qris => 'QRIS',
-  SaluranBayar.vaBca => 'VA_BCA',
-  SaluranBayar.vaMandiri => 'VA_MANDIRI',
-  SaluranBayar.gopay => 'GOPAY',
+  SaluranBayar.qris => 'qris',
 };
 
 /// Nama enum durasi paket untuk dikirim ke backend.
@@ -207,19 +196,55 @@ String durasiKeString(DurasiPaket d) => switch (d) {
   DurasiPaket.tahunan => 'TAHUNAN',
 };
 
+/// Skema URL e-wallet yang diizinkan. Semua selain ini dibuang — tautan yang
+/// disimpan di backend adalah data tak tepercaya, dan XSS lewat URL adalah
+/// cara termurah untuk menguasai aplikasi.
+const _skemaDiizinkan = {'https', 'dana', 'gojek', 'shopeeid'};
+
+InstruksiBayar? instruksiDariJson(dynamic j) {
+  if (j is! Map<String, dynamic>) return null;
+
+  final tipe = j['tipe'];
+  if (tipe is! String) return null;
+
+  final aksi = <AksiEwallet>[];
+  final mentah = j['aksi'];
+  if (mentah is List) {
+    for (final a in mentah) {
+      if (a is Map && a['url'] is String) {
+        final url = a['url'] as String;
+        final aman = _urlAman(url);
+        if (aman != null) aksi.add(AksiEwallet(url: aman));
+      }
+    }
+  }
+
+  if (tipe == 'qr_code') {
+    final qrUrl = (j['qrUrl'] as String?)?.trim() ?? '';
+    return qrUrl.isEmpty ? null : InstruksiBayar(qrUrl: qrUrl);
+  }
+
+  return null;
+}
+
+String? _urlAman(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri == null || !_skemaDiizinkan.contains(uri.scheme)) return null;
+  return url;
+}
+
 Tagihan tagihanDariJson(Map<String, dynamic> j) => Tagihan(
   id: j['id'].toString(),
   nomorInvoice: j['nomorInvoice'] as String? ?? '',
   durasi: _durasiPaket(j['durasi'] as String?),
   nominal: _int(j['nominal']),
-  saluran: _saluranBayar(j['saluran'] as String?),
+  saluran: saluranDariKode(j['saluran'] as String?),
   status: _statusBayar(j['status'] as String?),
   dibuat: _tanggal(j['dibuat']),
   batasBayar: _tanggal(j['batasBayar']),
+  batasSaluran: j['batasSaluran'] is String ? _tanggal(j['batasSaluran']) : null,
   berlakuSampai: _tanggal(j['berlakuSampai']),
-  kodeBayar: j['kodeBayar'] as String?,
-  kodePerusahaan: j['kodePerusahaan'] as String?,
-  qrUrl: j['qrUrl'] as String?,
+  instruksi: instruksiDariJson(j['instruksi']),
   tautanBayar: j['tautanBayar'] as String?,
 );
 

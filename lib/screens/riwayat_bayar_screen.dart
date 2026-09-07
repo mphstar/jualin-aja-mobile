@@ -179,7 +179,7 @@ class _BarisTagihan extends StatelessWidget {
       judul: tagihan.nomorInvoice,
       keterangan:
           '${tanggal(tagihan.dibuat)} · ${tagihan.durasi.label} · '
-          '${tagihan.saluran.label}',
+          'Mayar',
       akhiran: rupiah(tagihan.nominal),
       bawahAkhiran: LencanaBayar(status: status),
       // Hanya yang masih menunggu yang bisa dibuka lagi — tagihan lunas tidak

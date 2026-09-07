@@ -416,14 +416,13 @@ void main() {
         expect(tester.takeException(), isNull, reason: 'luapan di $tujuan');
       }
 
-      // Alur pembayaran — dua layar dengan angka panjang dan nomor VA 19
-      // karakter, keduanya kandidat kuat untuk meluber di layar sempit.
+      // Alur pembayaran — dua layar dengan angka panjang, keduanya kandidat
+      // kuat untuk meluber di layar sempit.
       if (pakaiBilah) {
         await keTab(tester, 'Akun');
         await ketuk(tester, find.text('Perpanjang langganan'));
         expect(tester.takeException(), isNull, reason: 'luapan di Perpanjang');
 
-        await ketuk(tester, find.text('Virtual Account BCA'));
         await ketuk(
           tester,
           find.widgetWithText(FilledButton, 'Bayar sekarang'),
@@ -494,13 +493,13 @@ void main() {
     await ketuk(tester, find.text('Perpanjang langganan'));
   }
 
-  testWidgets('layar perpanjang memilih QRIS sebagai metode pembayaran bawaan', (
+  testWidgets('layar perpanjang siap membayar tanpa pilih-pilih metode', (
     tester,
   ) async {
     ukuran(tester, 400);
     await keLayarBayar(tester);
 
-    // QRIS langsung terpilih secara bawaan sehingga tombol Bayar sekarang aktif.
+    // Metode pembayaran dipilih di halaman Mayar, jadi tombolnya langsung aktif.
     expect(find.widgetWithText(FilledButton, 'Bayar sekarang'), findsOneWidget);
   });
 
@@ -545,12 +544,10 @@ void main() {
     final sebelum = langgananContoh.tanggalBerakhir;
 
     await keLayarBayar(tester);
-    await ketuk(tester, find.text('Virtual Account BCA'));
     await ketuk(tester, find.widgetWithText(FilledButton, 'Bayar sekarang'));
 
-    // Keadaan menunggu: nomor VA dan cara membayarnya harus ada.
+    // Keadaan menunggu: halaman pembayaran Mayar berikut tombolnya.
     expect(find.text('Menunggu pembayaran'), findsOneWidget);
-    expect(find.text('8808 0812 3456 7890'), findsOneWidget);
     expect(find.text('Cara membayar'.toUpperCase()), findsOneWidget);
 
     await ketuk(tester, find.widgetWithText(FilledButton, 'Saya sudah bayar'));
@@ -571,7 +568,6 @@ void main() {
   ) async {
     ukuran(tester, 400);
     await keLayarBayar(tester);
-    await ketuk(tester, find.text('QRIS'));
     await ketuk(tester, find.widgetWithText(FilledButton, 'Bayar sekarang'));
 
     // Mode kosong menirukan keadaan paling sering: pengguna menekan tombol

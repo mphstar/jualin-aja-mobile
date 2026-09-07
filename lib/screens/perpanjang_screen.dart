@@ -11,7 +11,8 @@ import '../widgets/lencana.dart';
 import '../widgets/rangka.dart';
 import 'status_bayar_screen.dart';
 
-/// Pilih durasi dan saluran pembayaran, lalu buat tagihan.
+/// Pilih durasi dan saluran pembayaran, lalu buat tagihan dengan instrumen
+/// native (native checkout).
 ///
 /// Satu kalimat di layar ini yang paling menentukan apakah orang membayar
 /// sekarang atau menunda sampai hari terakhir: **"sisa 5 hari Anda tidak
@@ -36,8 +37,9 @@ class PerpanjangScreen extends StatelessWidget {
         ),
         title: const Text('Perpanjang langganan'),
       ),
-      body: Bingkai<Langganan>(
-        ambil: Repositori.langganan,
+      body: Bingkai<
+          ({Langganan langganan, List<SaluranBayar> saluran})>(
+        ambil: Repositori.muatPerpanjang,
         rangka: const Padding(
           padding: EdgeInsets.all(Jarak.sm),
           child: Column(
@@ -49,16 +51,20 @@ class PerpanjangScreen extends StatelessWidget {
             ],
           ),
         ),
-        isi: (context, l) => _Isi(langganan: l),
+        isi: (context, muatan) =>
+            _Isi(langganan: muatan.langganan, saluran: muatan.saluran),
       ),
     );
   }
 }
 
 class _Isi extends StatefulWidget {
-  const _Isi({required this.langganan});
+  const _Isi({required this.langganan, required this.saluran});
 
   final Langganan langganan;
+
+  /// Saluran yang boleh dipilih — datang dari server, bukan hardcode.
+  final List<SaluranBayar> saluran;
 
   @override
   State<_Isi> createState() => _IsiState();
@@ -69,8 +75,16 @@ class _IsiState extends State<_Isi> {
   // dan sudah membawa hemat nyata. Bawaan termurah membuat pilihan lain
   // terlihat seperti membayar lebih mahal untuk hal yang sama.
   DurasiPaket _durasi = DurasiPaket.semesteran;
-  SaluranBayar? _saluran = SaluranBayar.qris;
+  SaluranBayar? _saluran;
   bool _memproses = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Saluran pertama jadi bawaan — daftar datang dari server, dan tombol
+    // mati selama tidak ada saluran yang bisa dipilih.
+    _saluran = widget.saluran.isEmpty ? null : widget.saluran.first;
+  }
 
   Future<void> _bayar() async {
     setState(() => _memproses = true);
@@ -82,7 +96,7 @@ class _IsiState extends State<_Isi> {
       if (!mounted) return;
       // MENGGANTI, bukan menumpuk. Begitu tagihan ada, kembali ke pemilih
       // paket adalah jalan menuju tagihan KEDUA untuk hal yang sama — dan
-      // pengguna yang punya dua nomor VA aktif akan membayar yang salah.
+      // pengguna yang punya dua instrumen aktif akan membayar yang salah.
       await Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
           builder: (_) => StatusBayarScreen(tagihan: tagihan),
@@ -127,12 +141,15 @@ class _IsiState extends State<_Isi> {
               ],
               const SizedBox(height: Jarak.xs),
 
-              const JudulBagian('Metode pembayaran'),
-              _DaftarSaluran(
-                terpilih: _saluran,
-                onPilih: (s) => setState(() => _saluran = s),
-              ),
-              const SizedBox(height: Jarak.md),
+              if (widget.saluran.isNotEmpty) ...[
+                const JudulBagian('Metode pembayaran'),
+                _DaftarSaluran(
+                  daftar: widget.saluran,
+                  terpilih: _saluran,
+                  onPilih: (s) => setState(() => _saluran = s),
+                ),
+                const SizedBox(height: Jarak.md),
+              ],
 
               _KartuRincian(
                 langganan: l,
@@ -144,8 +161,6 @@ class _IsiState extends State<_Isi> {
         ),
         _BilahBayar(
           nominal: _durasi.harga,
-          // Tombol mati sampai saluran dipilih. Membuatnya hidup lalu menolak
-          // di layar berikutnya adalah menunda kabar buruk satu ketukan.
           onBayar: _saluran == null ? null : _bayar,
           memproses: _memproses,
         ),
@@ -336,9 +351,15 @@ class _Radio extends StatelessWidget {
   }
 }
 
+/// Daftar saluran pembayaran yang bisa dipilih — isinya datang dari server.
 class _DaftarSaluran extends StatelessWidget {
-  const _DaftarSaluran({required this.terpilih, required this.onPilih});
+  const _DaftarSaluran({
+    required this.daftar,
+    required this.terpilih,
+    required this.onPilih,
+  });
 
+  final List<SaluranBayar> daftar;
   final SaluranBayar? terpilih;
   final ValueChanged<SaluranBayar> onPilih;
 
@@ -346,17 +367,13 @@ class _DaftarSaluran extends StatelessWidget {
   Widget build(BuildContext context) {
     return KartuDaftar(
       anak: [
-        for (final s in SaluranBayar.values)
+        for (final s in daftar)
           BarisDaftar(
             awalan: _Radio(terpilih: terpilih == s),
             judul: s.label,
-            keterangan: s.keterangan,
+            keterangan: 'Bayar dengan ${s.label} — dibuka di layar ini.',
             bawahAkhiran: Icon(
-              switch (s.grup) {
-                GrupSaluran.qris => Icons.qr_code_2,
-                GrupSaluran.virtualAccount => Icons.account_balance_outlined,
-                GrupSaluran.eWallet => Icons.account_balance_wallet_outlined,
-              },
+              Icons.qr_code_2,
               size: 22,
               color: context.warna.onSurfaceVariant,
             ),
@@ -554,9 +571,7 @@ class _BilahBayar extends StatelessWidget {
                       ),
                     )
                   : Text(
-                      onBayar == null
-                          ? 'Pilih metode pembayaran'
-                          : 'Bayar sekarang',
+                      onBayar == null ? 'Pilih metode pembayaran' : 'Bayar sekarang',
                     ),
             ),
           ],

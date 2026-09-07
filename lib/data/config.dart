@@ -15,7 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// - Perangkat fisik di jaringan lokal: `http://<IP-komputer>:8000`
 const basisApiBawaan = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'https://jualinaja.mphstar.my.id',
+  defaultValue: 'https://c7b4-2a09-bac5-3a1a-137d-00-1f1-1cd.ngrok-free.app',
 );
 
 /// URL dasar API yang aktif saat ini.

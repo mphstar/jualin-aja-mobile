@@ -294,6 +294,25 @@ abstract final class Repositori {
         .toList();
   }
 
+  static Future<({Langganan langganan, List<SaluranBayar> saluran})>
+      muatPerpanjang() async {
+    final j = await api.get('/langganan');
+    final saluran = <SaluranBayar>[];
+    final mentah = j['saluran'];
+    if (mentah is List) {
+      for (final s in mentah) {
+        if (s is Map) {
+          final kode = saluranDariKode(s['kode'] as String?);
+          if (kode != null) saluran.add(kode);
+        }
+      }
+    }
+    return (
+      langganan: langgananDariJson(j['langganan'] as Map<String, dynamic>),
+      saluran: saluran,
+    );
+  }
+
   static Future<Tagihan> buatTagihan({
     required DurasiPaket durasi,
     required SaluranBayar saluran,

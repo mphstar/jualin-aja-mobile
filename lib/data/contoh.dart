@@ -391,12 +391,14 @@ List<Tagihan> _tagihanAwal() {
       nomorInvoice: 'INV/2026/0018',
       durasi: DurasiPaket.bulanan,
       nominal: DurasiPaket.bulanan.harga,
-      saluran: SaluranBayar.vaBca,
+      saluran: SaluranBayar.qris,
       status: StatusBayar.lunas,
       dibuat: kini.subtract(const Duration(days: 56)),
       batasBayar: kini.subtract(const Duration(days: 55)),
       berlakuSampai: kini.subtract(const Duration(days: 25)),
-      kodeBayar: '8808 0812 3456 7890',
+      instruksi: const InstruksiBayar(
+        qrUrl: 'https://contoh/qr-inv18.png',
+      ),
     ),
     // Satu tagihan gagal, sengaja. Riwayat yang seluruhnya hijau tidak pernah
     // menguji apakah keadaan buruknya sudah dirancang.
@@ -405,12 +407,11 @@ List<Tagihan> _tagihanAwal() {
       nomorInvoice: 'INV/2026/0017',
       durasi: DurasiPaket.bulanan,
       nominal: DurasiPaket.bulanan.harga,
-      saluran: SaluranBayar.vaBca,
+      saluran: SaluranBayar.qris,
       status: StatusBayar.kedaluwarsa,
       dibuat: kini.subtract(const Duration(days: 57)),
       batasBayar: kini.subtract(const Duration(days: 56)),
       berlakuSampai: kini.subtract(const Duration(days: 26)),
-      kodeBayar: '8808 0812 3456 7890',
     ),
   ];
 }

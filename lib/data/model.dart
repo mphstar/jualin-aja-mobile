@@ -629,7 +629,7 @@ class Langganan {
 }
 
 // ---------------------------------------------------------------------------
-// Pembayaran langganan (PRD §13 fase 3 — Midtrans)
+// Pembayaran langganan (PRD §13 fase 3 — Mayar, native checkout)
 // ---------------------------------------------------------------------------
 
 /// PRD M6 F6.2.
@@ -644,38 +644,51 @@ extension LabelStatusBayar on StatusBayar {
   };
 }
 
-/// Saluran pembayaran Midtrans yang akan dipakai.
-///
-/// Daftarnya sengaja pendek. Midtrans menyediakan belasan saluran, tapi
-/// halaman yang menawarkan belasan pilihan membuat orang berhenti memilih —
-/// dan tiga saluran ini menutupi hampir semua pemilik toko di Indonesia.
-enum SaluranBayar { qris, vaBca, vaMandiri, gopay }
-
-enum GrupSaluran { qris, virtualAccount, eWallet }
+/// Saluran pembayaran Mayar yang ditawarkan server.
+enum SaluranBayar { qris }
 
 extension RinciSaluran on SaluranBayar {
   String get label => switch (this) {
     SaluranBayar.qris => 'QRIS',
-    SaluranBayar.vaBca => 'Virtual Account BCA',
-    SaluranBayar.vaMandiri => 'Virtual Account Mandiri',
-    SaluranBayar.gopay => 'GoPay',
   };
+}
 
-  String get keterangan => switch (this) {
-    SaluranBayar.qris => 'Pindai dari aplikasi bank atau e-wallet mana pun',
-    SaluranBayar.vaBca => 'Transfer ke nomor VA lewat m-BCA atau ATM',
-    SaluranBayar.vaMandiri => 'Transfer ke nomor VA lewat Livin atau ATM',
-    SaluranBayar.gopay => 'Bayar langsung dari saldo GoPay',
-  };
+/// Kode `paymentMethod` Mayar → enum aplikasi. Null kalau tak dikenal.
+SaluranBayar? saluranDariKode(String? kode) => switch (kode) {
+  'qris' => SaluranBayar.qris,
+  _ => null,
+};
 
-  GrupSaluran get grup => switch (this) {
-    SaluranBayar.qris => GrupSaluran.qris,
-    SaluranBayar.vaBca || SaluranBayar.vaMandiri => GrupSaluran.virtualAccount,
-    SaluranBayar.gopay => GrupSaluran.eWallet,
-  };
+/// Instrumen bayar native yang dinormalisasi backend (native checkout).
+///
+/// Hanya `qrUrl` yang terisi selama saluran cuma QRIS. Bentuknya harus
+/// dianggap tak tepercaya: kalau tak dikenal, pemakaian jatuh ke
+/// [Tagihan.tautanBayar].
+class InstruksiBayar {
+  const InstruksiBayar({
+    this.qrUrl,
+    this.kodeBayar,
+    this.kodePerusahaan,
+    this.aksi = const [],
+  });
 
-  /// True kalau saluran ini memberi nomor yang harus disalin pelanggan.
-  bool get pakaiKode => grup == GrupSaluran.virtualAccount;
+  /// URL gambar kode QR yang ditampilkan aplikasi. Null kalau bukan QRIS.
+  final String? qrUrl;
+
+  /// Nomor Virtual Account (saluran VA). Null selama bukan VA.
+  final String? kodeBayar;
+
+  /// Kode perusahaan/bank (saluran VA). Null selama bukan VA.
+  final String? kodePerusahaan;
+
+  /// Daftar aksi e-wallet yang sudah lolos saringan skema URL.
+  final List<AksiEwallet> aksi;
+}
+
+class AksiEwallet {
+  const AksiEwallet({required this.url});
+
+  final String url;
 }
 
 /// Satu tagihan langganan. Bentuknya mengikuti PRD §6 `Pembayaran`.
@@ -690,9 +703,8 @@ class Tagihan {
     required this.dibuat,
     required this.batasBayar,
     required this.berlakuSampai,
-    this.kodeBayar,
-    this.kodePerusahaan,
-    this.qrUrl,
+    this.batasSaluran,
+    this.instruksi,
     this.tautanBayar,
   });
 
@@ -700,29 +712,26 @@ class Tagihan {
   final String nomorInvoice;
   final DurasiPaket durasi;
   final int nominal;
-  final SaluranBayar saluran;
+  final SaluranBayar? saluran;
   final StatusBayar status;
   final DateTime dibuat;
 
-  /// Midtrans menutup tagihan yang tidak dibayar. 24 jam adalah bawaan yang
-  /// lazim, dan cukup longgar untuk orang yang membayar lewat ATM besok pagi.
+  /// Batas yang dipakai layar: kedaluwarsa saluran (bisa lebih awal dari
+  /// invoice) atau kedaluwarsa invoice.
   final DateTime batasBayar;
+
+  /// Kedaluwarsa saluran. Menang atas [batasBayar] kalau lebih awal.
+  final DateTime? batasSaluran;
 
   /// Tanggal berakhir langganan SETELAH tagihan ini lunas. Dihitung saat
   /// tagihan dibuat, bukan saat dibayar — supaya angka yang dijanjikan di
   /// layar pembayaran sama persis dengan yang didapat.
   final DateTime berlakuSampai;
 
-  /// Nomor Virtual Account. Null untuk saluran yang tidak memakainya.
-  final String? kodeBayar;
+  /// Instrumen native (QR/VA/e-wallet) untuk digambar langsung di aplikasi.
+  final InstruksiBayar? instruksi;
 
-  /// Biller code Mandiri. Null untuk saluran lain.
-  final String? kodePerusahaan;
-
-  /// URL gambar QR Code (QRIS). Null kalau bukan QRIS atau server tiruan.
-  final String? qrUrl;
-
-  /// URL deeplink / tautan bayar (GoPay). Null kalau bukan GoPay.
+  /// URL halaman hosted Mayar. Cadangan yang dipakai ketika [instruksi] null.
   final String? tautanBayar;
 
   Duration get sisaWaktu => batasBayar.difference(DateTime.now());
@@ -743,10 +752,9 @@ class Tagihan {
     status: status ?? this.status,
     dibuat: dibuat,
     batasBayar: batasBayar,
+    batasSaluran: batasSaluran,
     berlakuSampai: berlakuSampai,
-    kodeBayar: kodeBayar,
-    kodePerusahaan: kodePerusahaan,
-    qrUrl: qrUrl,
+    instruksi: instruksi,
     tautanBayar: tautanBayar,
   );
 }
