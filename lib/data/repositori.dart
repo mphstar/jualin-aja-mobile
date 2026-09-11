@@ -278,6 +278,25 @@ abstract final class Repositori {
     return url;
   }
 
+  /// Klaim 1 konten gratis (Resep / Prompt) dengan jatah langganan.
+  static Future<String> klaimPustaka(String ebookId) async {
+    final j = await api.post('/resep/$ebookId/klaim');
+    final pesan = j['message'] as String? ?? 'Konten berhasil diklaim.';
+    revisiData.value++;
+    return pesan;
+  }
+
+  /// Beli akses satuan konten pustaka — mengembalikan Tagihan Mayar.
+  static Future<Tagihan> beliPustaka({
+    required String ebookId,
+    required SaluranBayar saluran,
+  }) async {
+    final j = await api.post('/resep/$ebookId/beli', {
+      'saluran': saluranKeString(saluran),
+    });
+    return tagihanDariJson(j);
+  }
+
   // -------------------------------------------------------------------------
   // Langganan & pembayaran
   // -------------------------------------------------------------------------
@@ -307,6 +326,10 @@ abstract final class Repositori {
         }
       }
     }
+    // Sinkronkan harga paket dari server supaya tampilan akurat
+    // saat admin mengubah harga di panel.
+    final harga = j['harga'];
+    if (harga is List) syncHargaDariServer(harga);
     return (
       langganan: langgananDariJson(j['langganan'] as Map<String, dynamic>),
       saluran: saluran,

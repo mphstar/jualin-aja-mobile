@@ -395,6 +395,10 @@ class Ebook {
     this.coverUrl,
     this.fileUrl,
     this.bolehUnduh = false,
+    this.harga = 25000,
+    this.terbuka = false,
+    this.statusAkses = 'TERKUNCI',
+    this.bisaKlaim = false,
   });
 
   final String id;
@@ -410,6 +414,18 @@ class Ebook {
   final String? coverUrl;
   final String? fileUrl;
   final bool bolehUnduh;
+
+  /// Harga beli satuan (rupiah).
+  final int harga;
+
+  /// Apakah konten sudah terbuka (klaim atau beli).
+  final bool terbuka;
+
+  /// Status akses: TERBUKA, BISA_KLAIM, atau TERKUNCI.
+  final String statusAkses;
+
+  /// Apakah jatah klaim untuk jenis ini masih tersedia.
+  final bool bisaKlaim;
 
   String get labelKategori => jenis == JenisKonten.prompt
       ? (kategoriPrompt ?? 'Prompt')
@@ -429,15 +445,32 @@ enum JenisKonten { resep, prompt }
 /// Yang membedakan hanya lama berlangganan dan harga.
 enum DurasiPaket { ujiCoba, bulanan, semesteran, tahunan }
 
-/// Harga paket. **Satu tempat, sengaja** — PRD §4.1 menandainya sebagai angka
-/// contoh yang nanti bisa diubah dari halaman Pengaturan panel admin. Kalau ia
-/// tersebar ke beberapa berkas, perubahan harga akan selalu menyisakan satu
-/// tempat yang terlewat.
-const hargaPaket = <DurasiPaket, int>{
+/// Harga paket — diisi dari server saat layar Perpanjang dimuat.
+///
+/// Nilai di sini adalah bawaan awal yang dipakai sebelum server merespons.
+/// Begitu [syncHargaDariServer] dipanggil, nilai-nilainya digantikan oleh
+/// harga dari panel admin.
+final hargaPaket = <DurasiPaket, int>{
   DurasiPaket.bulanan: 99000,
   DurasiPaket.semesteran: 499000,
   DurasiPaket.tahunan: 899000,
 };
+
+/// Perbarui [hargaPaket] dari array `harga` yang dikirim server.
+void syncHargaDariServer(List<dynamic> daftarHarga) {
+  for (final item in daftarHarga) {
+    if (item is! Map) continue;
+    final durasi = switch (item['durasi'] as String?) {
+      'BULANAN' => DurasiPaket.bulanan,
+      'SEMESTERAN' => DurasiPaket.semesteran,
+      'TAHUNAN' => DurasiPaket.tahunan,
+      _ => null,
+    };
+    if (durasi == null) continue;
+    final h = item['harga'];
+    if (h is int && h > 0) hargaPaket[durasi] = h;
+  }
+}
 
 /// Yang boleh dibeli. Uji coba tidak ada di sini — ia diberikan otomatis saat
 /// daftar, bukan dijual.
@@ -587,9 +620,9 @@ class Langganan {
 
   VersiLangganan get versi => FiturLangganan.versiDariStatus(status);
 
-  /// Katalog resep ebook HANYA terbuka untuk paket Langganan (Paid Active).
-  /// Trial dan Gratis tidak bisa mengakses resep.
-  bool get bolehUnduhResep => FiturLangganan.bolehAksesResep(versi);
+  /// Katalog Pustaka terbuka untuk semua akun (lihat saja). Akses per-konten
+  /// diatur oleh endpoint klaim/beli.
+  bool get bolehUnduhResep => true;
 
   /// Voucher/diskon transaksi terbuka untuk Trial dan Langganan.
   bool get bolehAksesVoucher => FiturLangganan.bolehAksesVoucher(versi);

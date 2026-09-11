@@ -19,7 +19,9 @@ import 'repositori.dart' show RingkasanBeranda;
 
 DateTime _tanggal(dynamic v) {
   if (v == null) return DateTime.now();
-  return DateTime.parse(v.toString());
+  // Server mengirim UTC (ISO 8601 dengan 'Z'). Konversi ke lokal supaya
+  // jam yang tampil sesuai timezone perangkat (WIB = UTC+7), bukan UTC.
+  return DateTime.parse(v.toString()).toLocal();
 }
 
 int _int(dynamic v) => v is int ? v : int.tryParse(v.toString()) ?? 0;
@@ -267,7 +269,11 @@ Ebook ebookDariJson(Map<String, dynamic> j) {
     ukuranMb: _double(j['ukuranMb']),
     coverUrl: j['coverUrl'] as String?,
     fileUrl: j['fileUrl'] as String?,
-    bolehUnduh: _bool(j['bolehUnduh']),
+    bolehUnduh: _bool(j['terbuka']) || _bool(j['bolehUnduh']),
+    harga: _int(j['harga']).clamp(0, 999999999),
+    terbuka: _bool(j['terbuka']),
+    statusAkses: j['statusAkses'] as String? ?? 'TERKUNCI',
+    bisaKlaim: _bool(j['bisaKlaim']),
   );
 }
 

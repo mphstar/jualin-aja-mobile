@@ -37,7 +37,8 @@ class StatusBayarScreen extends StatefulWidget {
   State<StatusBayarScreen> createState() => _StatusBayarScreenState();
 }
 
-class _StatusBayarScreenState extends State<StatusBayarScreen> {
+class _StatusBayarScreenState extends State<StatusBayarScreen>
+    with WidgetsBindingObserver {
   late Tagihan _tagihan = widget.tagihan;
   bool _memeriksa = false;
   String? _galat;
@@ -46,31 +47,45 @@ class _StatusBayarScreenState extends State<StatusBayarScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _mulaiPemantauanOtomatis();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pemantauTimer?.cancel();
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _periksaOtomatis();
+    }
+  }
+
   void _mulaiPemantauanOtomatis() {
     if (_tagihan.statusKini != StatusBayar.menunggu) return;
-    _pemantauTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
-      if (_memeriksa || !mounted || _tagihan.statusKini != StatusBayar.menunggu) return;
-      try {
-        final hasil = await Repositori.periksaTagihan(_tagihan);
-        if (!mounted) return;
-        if (hasil.statusKini != StatusBayar.menunggu) {
-          _pemantauTimer?.cancel();
-          setState(() {
-            _tagihan = hasil;
-            _galat = null;
-          });
-        }
-      } catch (_) {}
+    _pemantauTimer?.cancel();
+    _pemantauTimer = Timer.periodic(const Duration(seconds: 4), (_) async {
+      await _periksaOtomatis();
     });
+  }
+
+  Future<void> _periksaOtomatis() async {
+    if (!mounted || _tagihan.statusKini != StatusBayar.menunggu || _memeriksa) return;
+    try {
+      final hasil = await Repositori.periksaTagihan(_tagihan);
+      if (!mounted) return;
+      if (hasil.statusKini != StatusBayar.menunggu) {
+        _pemantauTimer?.cancel();
+        setState(() {
+          _tagihan = hasil;
+          _galat = null;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _periksa() async {
