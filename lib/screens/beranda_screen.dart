@@ -39,6 +39,26 @@ class BerandaScreen extends StatelessWidget {
     final padding = paddingHalaman(context);
 
     return Bingkai<RingkasanBeranda>(
+      // Akar tab: kalau server tidak terjangkau, seluruh halaman Beranda
+      // diganti satu tampilan galat — bukan sapaan dan panel setengah jadi.
+      bentukGalat: BentukGalat.halaman,
+      // Kepala halaman tetap tampil saat isinya gagal: layar yang kehilangan
+      // sapaannya terbaca seperti aplikasi yang rusak, bukan seperti koneksi
+      // yang sedang bermasalah.
+      pembungkusGalat: (galat) => Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              padding.left,
+              padding.top,
+              padding.right,
+              0,
+            ),
+            child: const _HeaderBeranda(),
+          ),
+          Expanded(child: galat),
+        ],
+      ),
       ambil: Repositori.beranda,
       rangka: ListView(
         padding: padding,
@@ -77,14 +97,18 @@ class _Isi extends StatelessWidget {
       children: [
         const _HeaderBeranda(),
         const SizedBox(height: Jarak.sm),
+        // Dua kartu teratas berbagi lebar halaman, bukan memakai lebar tetap.
+        // Dengan lebar tetap, di ponsel kartu kedua terpotong separuh dan di
+        // jendela lebar keduanya berhenti jauh sebelum tepi kanan — tepinya
+        // tidak pernah sejajar dengan kartu-kartu di bawahnya. Perbandingan
+        // 248:190 dipertahankan supaya kartu omzet tetap yang paling besar.
         SizedBox(
           height: 176,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SizedBox(
-                width: 248,
+              Expanded(
+                flex: 248,
                 child: _KartuAktivitas(
                   omzet: ringkasan.omzet,
                   deret: ringkasan.tujuhHari,
@@ -92,8 +116,8 @@ class _Isi extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: Jarak.xs),
-              SizedBox(
-                width: 190,
+              Expanded(
+                flex: 190,
                 child: _KartuTotal(
                   total: totalMinggu,
                   transaksi: ringkasan.transaksi,
@@ -650,13 +674,20 @@ class _AksiCepat extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const JudulBagian('Aksi cepat'),
-        GridView.count(
-          crossAxisCount: 2,
+        // Lebar petak dibatasi, bukan dipatok dua kolom. Dengan dua kolom
+        // tetap, di jendela lebar tiap petak ikut melebar — dan karena
+        // tingginya diturunkan dari lebar (childAspectRatio), petaknya jadi
+        // setinggi kartu besar, bukan lagi tombol. Di ponsel hasilnya tetap
+        // dua kolom seperti sekarang.
+        GridView(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          mainAxisSpacing: Jarak.xs,
-          crossAxisSpacing: Jarak.xs,
-          childAspectRatio: 3.2,
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 260,
+            mainAxisSpacing: Jarak.xs,
+            crossAxisSpacing: Jarak.xs,
+            childAspectRatio: 3.2,
+          ),
           children: [
             for (final (ikon, label, onTekan) in aksi)
               _AksiTile(ikon: ikon, label: label, onTekan: onTekan),

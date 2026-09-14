@@ -38,6 +38,69 @@ class AkunScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final padding = paddingHalaman(context);
 
+    // Satu bingkai di akar tab. Kalau server tidak terjangkau, SELURUH halaman
+    // Akun diganti satu tampilan galat — bukan beberapa kartu yang berbaris ke
+    // bawah. Bagian di dalamnya tetap punya bingkainya sendiri supaya rangka
+    // pemuatannya tetap sepotong-sepotong seperti isinya.
+    return Bingkai<({Profil profil, Toko toko})>(
+      bentukGalat: BentukGalat.halaman,
+      // Kepala halaman tetap tampil. Profil toko butuh data, jadi yang
+      // dipertahankan judul halamannya.
+      pembungkusGalat: (galat) => Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              padding.left,
+              padding.top,
+              padding.right,
+              0,
+            ),
+            child: const KepalaHalaman(judul: 'Akun'),
+          ),
+          Expanded(child: galat),
+        ],
+      ),
+      ambil: () async {
+        final p = await Repositori.profil();
+        final t = await Repositori.toko();
+        return (profil: p, toko: t);
+      },
+      rangka: ListView(
+        padding: padding,
+        children: const [
+          Row(
+            children: [
+              Rangka(lebar: 58, tinggi: 58, radius: 29),
+              SizedBox(width: Jarak.xs),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Rangka(lebar: 140, tinggi: 18),
+                  SizedBox(height: 6),
+                  Rangka(lebar: 100, tinggi: 14),
+                ],
+              ),
+            ],
+          ),
+          SizedBox(height: Jarak.md),
+          JudulBagian('Langganan'),
+          RangkaPanel(tinggi: 196),
+          SizedBox(height: Jarak.md),
+          JudulBagian('Toko'),
+          RangkaDaftar(baris: 4),
+        ],
+      ),
+      isi: (context, data) => _halaman(context, data, padding),
+    );
+  }
+
+  /// Isi halaman setelah datanya ada.
+  Widget _halaman(
+    BuildContext context,
+    ({Profil profil, Toko toko}) data,
+    EdgeInsets padding,
+  ) {
     return ListView(
       padding: padding,
       children: [
@@ -45,12 +108,9 @@ class AkunScreen extends StatelessWidget {
         // tentang satu orang dan satu toko, kata "Akun" tidak menambah apa pun
         // yang tidak sudah terbaca dari nama tokonya sendiri.
         //
-        // Ikut mendengarkan [revisiData] karena nama dan tokonya bisa berubah
-        // dari dua layar yang dibuka dari sini juga.
-        ListenableBuilder(
-          listenable: revisiData,
-          builder: (context, _) => const _KepalaProfil(),
-        ),
+        // Datanya dipinjam dari bingkai di akar layar: satu halaman tidak
+        // perlu dua permintaan untuk data yang sama.
+        _KepalaProfil(data: data),
         const SizedBox(height: Jarak.md),
 
         // Langganan adalah permukaan fokus layar ini — satu-satunya hal di
@@ -66,6 +126,9 @@ class AkunScreen extends StatelessWidget {
 
         const JudulBagian('Toko'),
         Bingkai<({Toko toko, List<Kategori> kategori})>(
+          // Bagian di dalam halaman, bukan halaman: bentuk ringkas dipakai
+          // kalau bagian ini yang gagal setelah gerbang di akar lolos.
+          bentukGalat: BentukGalat.padat,
           ambil: () async {
             final t = await Repositori.toko();
             final k = await Repositori.kategori();
@@ -203,21 +266,14 @@ class AkunScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: Jarak.xs),
-        Bingkai<({Profil profil, Toko toko})>(
-          ambil: () async {
-            final p = await Repositori.profil();
-            final t = await Repositori.toko();
-            return (profil: p, toko: t);
-          },
-          rangka: const SizedBox.shrink(),
-          isi: (context, data) => Center(
-            child: Text(
-              '${data.toko.nama} · ${data.profil.email}',
-              style: context.teks.bodySmall?.copyWith(
-                color: context.warna.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
+        // Baris kaki meminjam data yang sama dari akar layar.
+        Center(
+          child: Text(
+            '${data.toko.nama} · ${data.profil.email}',
+            style: context.teks.bodySmall?.copyWith(
+              color: context.warna.onSurfaceVariant,
             ),
+            textAlign: TextAlign.center,
           ),
         ),
       ],
@@ -266,72 +322,54 @@ class AkunScreen extends StatelessWidget {
 }
 
 /// Kepala halaman berupa profil, sejajar dengan sapaan di Beranda.
+///
+/// Datanya datang dari bingkai di akar layar Akun; kepala ini tidak lagi
+/// mengambil sendiri. Rangka pemuatannya pun ikut pindah ke sana, supaya satu
+/// halaman tidak memuat dua permintaan untuk data yang sama.
 class _KepalaProfil extends StatelessWidget {
-  const _KepalaProfil();
+  const _KepalaProfil({required this.data});
+
+  final ({Profil profil, Toko toko}) data;
 
   @override
   Widget build(BuildContext context) {
-    return Bingkai<({Profil profil, Toko toko})>(
-      ambil: () async {
-        final p = await Repositori.profil();
-        final t = await Repositori.toko();
-        return (profil: p, toko: t);
-      },
-      rangka: const Row(
-        children: [
-          Rangka(lebar: 58, tinggi: 58, radius: 29),
-          SizedBox(width: Jarak.xs),
-          Column(
+    final profil = data.profil;
+    final toko = data.toko;
+
+    return Row(
+      children: [
+        AvatarOnline(nama: profil.nama, ukuran: 58),
+        const SizedBox(width: Jarak.xs),
+        Expanded(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
             children: [
-              Rangka(lebar: 140, tinggi: 18),
-              SizedBox(height: 6),
-              Rangka(lebar: 100, tinggi: 14),
+              Text(
+                toko.nama,
+                style: context.teks.headlineSmall,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${profil.nama} · Pemilik Toko',
+                style: context.teks.bodyMedium?.copyWith(
+                  color: context.warna.onSurfaceVariant,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ],
           ),
-        ],
-      ),
-      isi: (context, data) {
-        final profil = data.profil;
-        final toko = data.toko;
-
-        return Row(
-          children: [
-            AvatarOnline(nama: profil.nama, ukuran: 58),
-            const SizedBox(width: Jarak.xs),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    toko.nama,
-                    style: context.teks.headlineSmall,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${profil.nama} · Pemilik Toko',
-                    style: context.teks.bodyMedium?.copyWith(
-                      color: context.warna.onSurfaceVariant,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            IconButton(
-              onPressed: () => Navigator.of(
-                context,
-              ).push(MaterialPageRoute<void>(builder: (_) => const ProfilScreen())),
-              icon: const Icon(Icons.edit_outlined),
-              tooltip: 'Ubah profil',
-            ),
-          ],
-        );
-      },
+        ),
+        IconButton(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const ProfilScreen()),
+          ),
+          icon: const Icon(Icons.edit_outlined),
+          tooltip: 'Ubah profil',
+        ),
+      ],
     );
   }
 }

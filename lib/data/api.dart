@@ -66,10 +66,24 @@ Uri _uri(String path, [Map<String, String>? query]) {
   return uri;
 }
 
+/// True kalau API-nya diakses lewat terowongan ngrok.
+///
+/// ngrok versi gratis menyisipkan halaman peringatan (ERR_NGROK_6024) untuk
+/// permintaan yang datang dari browser. Halaman itu tidak membawa header CORS,
+/// jadi browsernya menolak respons tersebut dan aplikasi membacanya sebagai
+/// "tidak bisa terhubung ke server" — gejalanya: dari aplikasi web login
+/// berhasil (permintaan pertama masih lolos), lalu seluruh permintaan
+/// berikutnya gagal. Aplikasi Android tidak terpengaruh karena bukan browser.
+bool get _lewatNgrok => basisApi.contains('ngrok');
+
 Map<String, String> get _headers => {
   'Accept': 'application/json',
   'Content-Type': 'application/json',
   if (_token != null) 'Authorization': 'Bearer $_token',
+  // Meminta ngrok melewati halaman peringatannya (nilainya bebas). Hanya
+  // dikirim kalau basis API-nya memang ngrok, supaya server lain tidak ikut
+  // menerima header asing ini.
+  if (_lewatNgrok) 'ngrok-skip-browser-warning': 'true',
 };
 
 /// Menerjemahkan respons ke Map, atau melempar [GagalMuat].

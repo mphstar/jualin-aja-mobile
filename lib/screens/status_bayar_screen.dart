@@ -1,15 +1,21 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../data/klaim.dart';
 import '../data/model.dart';
 import '../data/repositori.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 import '../util/format.dart';
+import '../util/gagal_galeri.dart';
+import '../util/kartu_qris.dart';
+import '../util/simpan_galeri.dart';
 import '../widgets/kartu.dart';
 import '../widgets/lencana.dart';
+import 'klaim_pustaka_screen.dart';
 
 /// Layar setelah tagihan dibuat.
 ///
@@ -43,6 +49,11 @@ class _StatusBayarScreenState extends State<StatusBayarScreen>
   bool _memeriksa = false;
   String? _galat;
   Timer? _pemantauTimer;
+
+  /// Pengalihan ke layar klaim hanya boleh terjadi sekali. Status tagihan
+  /// diperiksa berulang tiap beberapa detik; tanpa penanda ini layar klaim
+  /// akan ditumpuk berkali-kali di atas dirinya sendiri.
+  bool _sudahDiarahkan = false;
 
   @override
   void initState() {
@@ -80,10 +91,7 @@ class _StatusBayarScreenState extends State<StatusBayarScreen>
       if (!mounted) return;
       if (hasil.statusKini != StatusBayar.menunggu) {
         _pemantauTimer?.cancel();
-        setState(() {
-          _tagihan = hasil;
-          _galat = null;
-        });
+        _terapkan(hasil);
       }
     } catch (_) {}
   }
@@ -96,24 +104,50 @@ class _StatusBayarScreenState extends State<StatusBayarScreen>
     try {
       final hasil = await Repositori.periksaTagihan(_tagihan);
       if (!mounted) return;
-      setState(() {
-        _tagihan = hasil;
-        _memeriksa = false;
-        // Masih menunggu setelah diperiksa bukan galat — dana memang belum
-        // masuk. Mengatakannya terus terang lebih baik daripada memutar
-        // pemintal lalu diam.
-        _galat = hasil.statusKini == StatusBayar.menunggu
-            ? 'Pembayaran belum terdeteksi. Kalau baru saja membayar, '
-                  'coba lagi beberapa menit lagi.'
-            : null;
-      });
+
+      // Pengalihan menang atas pesan apa pun: kalau tagihannya lunas, layar ini
+      // memang akan ditinggalkan.
+      if (_terapkan(hasil, galat: _pesanBelumTerbayar(hasil))) return;
     } on GagalMuat catch (e) {
       if (!mounted) return;
-      setState(() {
-        _memeriksa = false;
-        _galat = e.pesan;
-      });
+      setState(() => _galat = e.pesan);
+    } finally {
+      // Selalu: pemintal tidak boleh terus berputar di layar yang sudah
+      // digantikan layar klaim.
+      if (mounted) setState(() => _memeriksa = false);
     }
+  }
+
+  /// Terapkan tagihan terbaru — dan alihkan ke layar klaim bila pembayaran
+  /// **langganannya** baru saja lunas.
+  ///
+  /// Pemeriksaannya ada di sini, bukan di tiap pemanggil: status tagihan
+  /// diperiksa dari dua jalur (pemantauan berkala dan tombol "Saya sudah
+  /// bayar"), dan aturan yang ditulis dua kali cepat atau lambat akan berbeda.
+  ///
+  /// Kembaliannya `true` kalau layar ini dialihkan; pemanggil tidak boleh
+  /// melanjutkan `setState` setelahnya.
+  bool _terapkan(Tagihan hasil, {String? galat}) {
+    // `isCurrent` menahan pengalihan yang menimpa layar lain yang kebetulan
+    // sedang di atas — mis. pratinjau PDF yang dibuka dari sini.
+    if (perluKeHalamanKlaim(hasil, sudahDiarahkan: _sudahDiarahkan) &&
+        ModalRoute.of(context)?.isCurrent == true) {
+      _sudahDiarahkan = true;
+
+      // `pushReplacement`, bukan `push`: layar ini sudah selesai tugasnya.
+      // Tombol kembali perangkat dari layar klaim harus mengembalikan ke
+      // langganan, bukan ke instruksi pembayaran yang sudah tidak berlaku.
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(builder: (_) => const KlaimPustakaScreen()),
+      );
+      return true;
+    }
+
+    setState(() {
+      _tagihan = hasil;
+      _galat = galat;
+    });
+    return false;
   }
 
   @override
@@ -221,6 +255,30 @@ class _StatusBayarScreenState extends State<StatusBayarScreen>
 
 // ---------------------------------------------------------------------------
 
+/// Pesan setelah diperiksa tapi tagihannya masih menunggu.
+///
+/// Bukan galat — dana memang belum masuk. Mengatakannya terus terang lebih
+/// baik daripada memutar pemintal lalu diam.
+String? _pesanBelumTerbayar(Tagihan tagihan) =>
+    tagihan.statusKini == StatusBayar.menunggu
+    ? 'Pembayaran belum terdeteksi. Kalau baru saja membayar, '
+          'coba lagi beberapa menit lagi.'
+    : null;
+
+/// Kalimat keadaan lunas — berbeda menurut apa yang dibeli.
+///
+/// Pembelian konten Pustaka tidak punya `berlakuSampai`: yang dibeli akses
+/// permanen, bukan masa berlaku. Menanyakan tanggalnya di situ dulu
+/// menghasilkan "Langganan aktif sampai hari ini".
+String _kalimatLunas(Tagihan tagihan) {
+  if (tagihan.tipe.pustaka) return 'Konten terbuka untuk selamanya';
+
+  final sampai = tagihan.berlakuSampai;
+  if (sampai == null) return 'Pembayaran berhasil';
+
+  return 'Langganan aktif sampai ${tanggal(sampai)}';
+}
+
 class _PanelStatus extends StatelessWidget {
   const _PanelStatus({required this.tagihan});
 
@@ -281,7 +339,7 @@ class _PanelStatus extends StatelessWidget {
           const SizedBox(height: Jarak.xs2),
           Text(
             lunas
-                ? 'Langganan aktif sampai ${tanggal(tagihan.berlakuSampai)}'
+                ? _kalimatLunas(tagihan)
                 : status == StatusBayar.menunggu
                 ? 'Bayar sebelum ${tanggal(tagihan.batasBayar)}, '
                       '${jam(tagihan.batasBayar)}'
@@ -313,14 +371,14 @@ class _Instrumen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final qrUrl = tagihan.instruksi?.qrUrl;
-    final adaQr = qrUrl != null && qrUrl.isNotEmpty;
+    final qrString = tagihan.instruksi?.qrString;
+    final adaQr = qrString != null && qrString.isNotEmpty;
 
     if (adaQr) {
-      return _PetakQr(tagihan: tagihan, qrUrl: qrUrl);
+      return _PetakQr(tagihan: tagihan, qrString: qrString);
     }
 
-    // Jatuh ke halaman hosted Mayar — cadangan ketika instrumen tak dikenal.
+    // Jatuh ke halaman pembayaran hosted — cadangan ketika instrumen tak dikenal.
     final url = tagihan.tautanBayar;
     final ada = url != null && url.isNotEmpty;
 
@@ -341,7 +399,7 @@ class _Instrumen extends StatelessWidget {
                 Expanded(
                   child: Text(
                     ada
-                        ? 'Pembayaran dilakukan di halaman Mayar.'
+                        ? 'Pembayaran dilakukan di halaman pembayaran JualinAja.'
                         : 'Tautan pembayaran belum tersedia. Coba periksa kembali.',
                     style: context.teks.bodySmall?.copyWith(
                       color: context.warna.onSurfaceVariant,
@@ -367,12 +425,62 @@ class _Instrumen extends StatelessWidget {
 }
 
 /// Kode QR yang digambar langsung di aplikasi (native checkout), dengan
-/// hitung mundur sampai kode berhenti berlaku.
-class _PetakQr extends StatelessWidget {
-  const _PetakQr({required this.tagihan, required this.qrUrl});
+/// hitung mundur sampai kode berhenti berlaku dan tombol simpan ke galeri.
+///
+/// Kodenya digambar dari `qrString`, bukan diambil sebagai gambar dari server —
+/// muatan QRIS tidak perlu keluar dari aplikasi.
+class _PetakQr extends StatefulWidget {
+  const _PetakQr({required this.tagihan, required this.qrString});
 
   final Tagihan tagihan;
-  final String qrUrl;
+  final String qrString;
+
+  @override
+  State<_PetakQr> createState() => _PetakQrState();
+}
+
+class _PetakQrState extends State<_PetakQr> {
+  bool _mengunduh = false;
+
+  Tagihan get tagihan => widget.tagihan;
+
+  /// Nama berkas di galeri. Nomor invoice memuat garis miring (`INV/2026/0130`)
+  /// yang tidak cocok jadi nama berkas.
+  String get _namaBerkas =>
+      'qris-${tagihan.nomorInvoice.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '-')}';
+
+  Future<void> _unduh() async {
+    if (_mengunduh) return;
+    setState(() => _mengunduh = true);
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final bytes = await gambarQris(tagihan, widget.qrString);
+      await simpanGambarKeGaleri(bytes, _namaBerkas);
+
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Gambar QRIS tersimpan di galeri.')),
+        );
+    } on GagalGaleri catch (e) {
+      // Pesannya sudah disusun lapisan util — pengecualian platform mentah
+      // tidak pernah sampai ke layar.
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(e.pesan)));
+    } catch (_) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Gambar QRIS tidak berhasil disimpan. Coba lagi.'),
+          ),
+        );
+    } finally {
+      if (mounted) setState(() => _mengunduh = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -395,14 +503,12 @@ class _PetakQr extends StatelessWidget {
                 padding: const EdgeInsets.all(Jarak.xs),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(Lengkung.kontrol),
-                  child: Image.network(
-                    qrUrl,
-                    fit: BoxFit.contain,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return const CircularProgressIndicator();
-                    },
-                    errorBuilder: (context, error, stackTrace) => Column(
+                  child: QrImageView(
+                    data: widget.qrString,
+                    version: QrVersions.auto,
+                    gapless: true,
+                    backgroundColor: Colors.white,
+                    errorStateBuilder: (context, error) => Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
@@ -412,7 +518,7 @@ class _PetakQr extends StatelessWidget {
                         ),
                         const SizedBox(height: Jarak.xs2),
                         Text(
-                          'Gagal memuat kode QR.',
+                          'Gagal menggambar kode QR.',
                           style: context.teks.bodySmall?.copyWith(
                             color: context.warna.onSurfaceVariant,
                           ),
@@ -435,6 +541,23 @@ class _PetakQr extends StatelessWidget {
                 height: 1.4,
               ),
             ),
+            // Web tidak punya galeri foto yang bisa ditulis tab biasa — `gal`
+            // memang tidak mendukungnya. Tombolnya disembunyikan daripada
+            // disediakan tapi selalu gagal.
+            if (galeriDidukung) ...[
+              const SizedBox(height: Jarak.xs),
+              OutlinedButton.icon(
+                onPressed: _mengunduh ? null : _unduh,
+                icon: _mengunduh
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.download_outlined, size: 18),
+                label: const Text('Simpan gambar QRIS'),
+              ),
+            ],
           ],
         ),
       ),
@@ -504,6 +627,9 @@ class _Rincian extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pustaka = tagihan.tipe.pustaka;
+    final berlakuSampai = tagihan.berlakuSampai;
+
     return KartuDaftar(
       anak: [
         BarisDaftar(
@@ -518,12 +644,21 @@ class _Rincian extends StatelessWidget {
         ),
         BarisDaftar(
           awalan: Icon(
-            Icons.workspace_premium_outlined,
+            pustaka
+                ? Icons.menu_book_outlined
+                : Icons.workspace_premium_outlined,
             size: 22,
             color: context.warna.onSurfaceVariant,
           ),
-          judul: tagihan.durasi.label,
-          keterangan: 'Berlaku sampai ${tanggal(tagihan.berlakuSampai)}',
+          // `durasi` tagihan Pustaka hanya placeholder dari server (kolomnya
+          // NOT NULL di sana) — menampilkannya berarti menjanjikan "1 Bulan"
+          // untuk pembelian yang sebenarnya permanen.
+          judul: pustaka ? tagihan.tipe.label : tagihan.durasi.label,
+          keterangan: pustaka
+              ? 'Akses permanen'
+              : berlakuSampai == null
+              ? 'Masa berlaku mengikuti paket'
+              : 'Berlaku sampai ${tanggal(berlakuSampai)}',
           akhiran: rupiah(tagihan.nominal),
         ),
         BarisDaftar(
@@ -532,8 +667,8 @@ class _Rincian extends StatelessWidget {
             size: 22,
             color: context.warna.onSurfaceVariant,
           ),
-          judul: 'Mayar',
-          keterangan: 'Diproses oleh Mayar',
+          judul: 'JualinAja',
+          keterangan: 'Pembayaran diverifikasi otomatis',
         ),
       ],
     );

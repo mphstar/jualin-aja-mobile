@@ -12,6 +12,7 @@ import '../widgets/keadaan.dart';
 import '../widgets/rangka.dart';
 import '../widgets/sampul_ebook.dart';
 import 'baca_screen.dart';
+import 'status_bayar_screen.dart';
 
 /// Pustaka konten: resep dan prompt berbentuk PDF.
 ///
@@ -32,6 +33,21 @@ class PustakaScreen extends StatelessWidget {
 
     return Bingkai<(Langganan, List<Ebook>)>(
       key: _kunci,
+      bentukGalat: BentukGalat.halaman,
+      pembungkusGalat: (galat) => Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              padding.left,
+              padding.top,
+              padding.right,
+              0,
+            ),
+            child: const KepalaHalaman(judul: 'Pustaka'),
+          ),
+          Expanded(child: galat),
+        ],
+      ),
       ambil: () async {
         final langganan = await Repositori.langganan();
         final ebook = await Repositori.ebook();
@@ -235,6 +251,10 @@ class _DaftarPustakaState extends State<_DaftarPustaka> {
                   ),
                   itemCount: terpilih.length,
                   itemBuilder: (context, i) => _KartuKonten(
+                    // Kartu ini menyimpan status `_memproses`. Daftarnya
+                    // tersaring, jadi tanpa kunci posisi kartu bisa berpindah
+                    // ke konten lain dan penjaga tap-nya ikut salah sasaran.
+                    key: ValueKey(terpilih[i].id),
                     ebook: terpilih[i],
                     onBerubah: widget.onRefresh,
                   ),
@@ -563,11 +583,21 @@ final _gayaTombol = ButtonStyle(
   ),
 );
 
-class _KartuKonten extends StatelessWidget {
-  const _KartuKonten({required this.ebook, this.onBerubah});
+class _KartuKonten extends StatefulWidget {
+  const _KartuKonten({super.key, required this.ebook, this.onBerubah});
 
   final Ebook ebook;
   final VoidCallback? onBerubah;
+
+  @override
+  State<_KartuKonten> createState() => _KartuKontenState();
+}
+
+class _KartuKontenState extends State<_KartuKonten> {
+  /// Penjaga anti-tap-ganda selagi tagihan sedang dibuat.
+  bool _memproses = false;
+
+  Ebook get ebook => widget.ebook;
 
   Future<void> _buka(BuildContext context) async {
     // Sudah terbuka — langsung baca.
@@ -613,7 +643,7 @@ class _KartuKonten extends StatelessWidget {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
           ..showSnackBar(SnackBar(content: Text(pesan)));
-        onBerubah?.call();
+        widget.onBerubah?.call();
       } on GagalMuat catch (e) {
         if (!context.mounted) return;
         ScaffoldMessenger.of(context)
@@ -623,13 +653,48 @@ class _KartuKonten extends StatelessWidget {
     }
   }
 
+  /// Tawarkan beli satuan, lalu terbitkan tagihannya dan buka layar bayar.
+  ///
+  /// Panggilan jaringan ada di sini, bukan di dalam lembar: lembarnya sudah
+  /// ditutup sebelum tagihan selesai dibuat, jadi `context`-nya sudah mati dan
+  /// SnackBar-nya tidak akan pernah muncul. `context` milik kartu ini tetap
+  /// hidup selama prosesnya.
   Future<void> _tampilkanDialogBeli(BuildContext context) async {
-    await showModalBottomSheet<void>(
+    if (_memproses) return;
+
+    final jadiBeli = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => _LembarBeli(ebook: ebook),
     );
+
+    if (jadiBeli != true || !context.mounted) return;
+
+    setState(() => _memproses = true);
+
+    try {
+      final tagihan = await Repositori.beliPustaka(
+        ebookId: ebook.id,
+        saluran: SaluranBayar.qris,
+      );
+      if (!context.mounted) return;
+
+      // `push`, bukan `pushReplacement`: setelah membayar pembeli harus
+      // kembali ke katalog untuk membaca konten yang barusan dibuka.
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => StatusBayarScreen(tagihan: tagihan),
+        ),
+      );
+    } on GagalMuat catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(e.pesan)));
+    } finally {
+      if (mounted) setState(() => _memproses = false);
+    }
   }
 
   @override
@@ -1030,32 +1095,10 @@ class _LembarBeli extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: FilledButton(
-              onPressed: () async {
-                try {
-                  final tagihan = await Repositori.beliPustaka(
-                    ebookId: ebook.id,
-                    saluran: SaluranBayar.qris,
-                  );
-                  if (!context.mounted) return;
-                  Navigator.of(context).pop();
-                  // TODO: arahkan ke halaman pembayaran / tampilkan QRIS
-                  ScaffoldMessenger.of(context)
-                    ..hideCurrentSnackBar()
-                    ..showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          'Tagihan ${tagihan.nomorInvoice} dibuat. '
-                          'Selesaikan pembayaran untuk membuka konten.',
-                        ),
-                      ),
-                    );
-                } on GagalMuat catch (e) {
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context)
-                    ..hideCurrentSnackBar()
-                    ..showSnackBar(SnackBar(content: Text(e.pesan)));
-                }
-              },
+              // Pemilih murni — persis `_LembarKlaim`. Tagihannya diterbitkan
+              // pemanggil setelah lembar ini tertutup, supaya tidak ada
+              // panggilan jaringan yang menahan lembar tetap terbuka.
+              onPressed: () => Navigator.of(context).pop(true),
               child: Text('Beli Akses — ${rupiah(ebook.harga)}'),
             ),
           ),

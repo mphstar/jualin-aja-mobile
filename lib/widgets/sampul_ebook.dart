@@ -4,6 +4,20 @@ import '../data/model.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
 
+/// Rasio sampul — sama dengan 56×76 yang dipakai kartu klaim.
+///
+/// Sampul **wajib** punya tinggi yang pasti. Ia banyak dipakai di dalam
+/// `Column` (mis. lembar bawah), dan di sana tinggi yang tersedia tak
+/// terbatas. Isinya menaruh `Expanded` di dalam `Column` untuk mendorong garis
+/// penutup ke dasar — dan `Expanded` di bawah tinggi tak terbatas melempar
+/// `RenderFlex children have non-zero flex but incoming height constraints are
+/// unbounded`, yang membatalkan layout SELURUH leluhurnya, bukan cuma sampul.
+/// Gejalanya lalu muncul jauh dari sini: tiap leluhur digambar tanpa ukuran.
+///
+/// Di tempat tinggi sudah ditentukan (mis. `SizedBox(width: 56, height: 76)`),
+/// `AspectRatio` tidak berpengaruh karena batasannya sudah ketat.
+const double _rasioSampul = 56 / 76;
+
 /// Sampul konten pustaka yang dibangun dari huruf, bukan dari gambar.
 ///
 /// Versi sebelumnya memakai petak foto kosong berikon buku — enam kotak abu
@@ -44,11 +58,12 @@ class SampulEbook extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cover = coverUrl;
-    if (cover != null && cover.isNotEmpty) {
-      return _gambarSampul(cover);
-    }
-
-    return _teksSampul(context);
+    return AspectRatio(
+      aspectRatio: _rasioSampul,
+      child: cover != null && cover.isNotEmpty
+          ? _gambarSampul(cover)
+          : _teksSampul(context),
+    );
   }
 
   /// Sampul dari foto unggahan. Kalau gagal dimuat (mis. koneksi), jatuh ke

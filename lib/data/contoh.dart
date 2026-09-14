@@ -378,6 +378,7 @@ List<Tagihan> _tagihanAwal() {
     Tagihan(
       id: 'inv3',
       nomorInvoice: 'INV/2026/0031',
+      tipe: TipeTagihan.langganan,
       durasi: DurasiPaket.bulanan,
       nominal: DurasiPaket.bulanan.harga,
       saluran: SaluranBayar.qris,
@@ -389,6 +390,7 @@ List<Tagihan> _tagihanAwal() {
     Tagihan(
       id: 'inv2',
       nomorInvoice: 'INV/2026/0018',
+      tipe: TipeTagihan.langganan,
       durasi: DurasiPaket.bulanan,
       nominal: DurasiPaket.bulanan.harga,
       saluran: SaluranBayar.qris,
@@ -397,7 +399,12 @@ List<Tagihan> _tagihanAwal() {
       batasBayar: kini.subtract(const Duration(days: 55)),
       berlakuSampai: kini.subtract(const Duration(days: 25)),
       instruksi: const InstruksiBayar(
-        qrUrl: 'https://contoh/qr-inv18.png',
+        // Muatan QRIS contoh. Panjangnya sengaja mendekati string sungguhan
+        // supaya tata letak kartu QR diuji pada ukuran yang nyata.
+        qrString:
+            '00020101021226650013CO.XENDIT.WWW01189360004200000000000215'
+            '0000000000000003030IDN5204581253033605802ID5920JualinAja Contoh'
+            '6007Jakarta61051234062070703A016304ABCD',
       ),
     ),
     // Satu tagihan gagal, sengaja. Riwayat yang seluruhnya hijau tidak pernah
@@ -405,6 +412,7 @@ List<Tagihan> _tagihanAwal() {
     Tagihan(
       id: 'inv1',
       nomorInvoice: 'INV/2026/0017',
+      tipe: TipeTagihan.langganan,
       durasi: DurasiPaket.bulanan,
       nominal: DurasiPaket.bulanan.harga,
       saluran: SaluranBayar.qris,
@@ -412,6 +420,20 @@ List<Tagihan> _tagihanAwal() {
       dibuat: kini.subtract(const Duration(days: 57)),
       batasBayar: kini.subtract(const Duration(days: 56)),
       berlakuSampai: kini.subtract(const Duration(days: 26)),
+    ),
+    // Satu pembelian konten, sengaja. `berlakuSampai`-nya null dan `durasi`-nya
+    // placeholder dari server — tanpa baris ini cabang tampilan Pustaka tidak
+    // pernah terlihat di mode contoh.
+    Tagihan(
+      id: 'inv4',
+      nomorInvoice: 'INV/2026/0032',
+      tipe: TipeTagihan.pustakaSatuan,
+      durasi: DurasiPaket.bulanan,
+      nominal: 35000,
+      saluran: SaluranBayar.qris,
+      status: StatusBayar.lunas,
+      dibuat: kini.subtract(const Duration(days: 3)),
+      batasBayar: kini.subtract(const Duration(days: 3)),
     ),
   ];
 }

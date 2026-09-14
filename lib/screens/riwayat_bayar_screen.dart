@@ -174,12 +174,17 @@ class _BarisTagihan extends StatelessWidget {
       StatusBayar.kedaluwarsa => Icons.timer_off_outlined,
     };
 
+    // `durasi` tagihan Pustaka hanya placeholder dari server — yang benar
+    // untuk baris itu adalah nama pembeliannya, bukan paket langganan.
+    final keterangan =
+        '${tanggal(tagihan.dibuat)} · '
+        '${tagihan.tipe.pustaka ? tagihan.tipe.label : tagihan.durasi.label} · '
+        'JualinAja';
+
     return BarisDaftar(
       awalan: IkonKotak(ikon, nada: nada, ukuran: 36),
       judul: tagihan.nomorInvoice,
-      keterangan:
-          '${tanggal(tagihan.dibuat)} · ${tagihan.durasi.label} · '
-          'Mayar',
+      keterangan: keterangan,
       akhiran: rupiah(tagihan.nominal),
       bawahAkhiran: LencanaBayar(status: status),
       // Hanya yang masih menunggu yang bisa dibuka lagi — tagihan lunas tidak

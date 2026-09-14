@@ -677,6 +677,31 @@ extension LabelStatusBayar on StatusBayar {
   };
 }
 
+/// Apa yang dibeli lewat tagihan ini — langganan atau satu konten Pustaka.
+///
+/// Dibutuhkan layar karena tagihan Pustaka memakai `durasi` placeholder
+/// (kolomnya NOT NULL di server) dan `berlakuSampai` null. Tanpa pembeda ini
+/// keduanya terbaca sebagai pembelian langganan satu bulan.
+enum TipeTagihan { langganan, pustakaSatuan }
+
+extension RinciTipeTagihan on TipeTagihan {
+  bool get pustaka => this == TipeTagihan.pustakaSatuan;
+
+  /// Judul baris rincian. Yang Pustaka menyebut konten, bukan paket.
+  String get label => switch (this) {
+    TipeTagihan.langganan => 'Langganan',
+    TipeTagihan.pustakaSatuan => 'Pembelian konten',
+  };
+}
+
+/// Kode `tipe` server → enum aplikasi. Null kalau tak dikenal, dan pemanggil
+/// memperlakukannya sebagai langganan — nilai bawaan sebelum kolom ini ada.
+TipeTagihan? tipeTagihanDariKode(String? kode) => switch (kode) {
+  'LANGGANAN' => TipeTagihan.langganan,
+  'PUSTAKA_SATUAN' => TipeTagihan.pustakaSatuan,
+  _ => null,
+};
+
 /// Saluran pembayaran Mayar yang ditawarkan server.
 enum SaluranBayar { qris }
 
@@ -694,19 +719,23 @@ SaluranBayar? saluranDariKode(String? kode) => switch (kode) {
 
 /// Instrumen bayar native yang dinormalisasi backend (native checkout).
 ///
-/// Hanya `qrUrl` yang terisi selama saluran cuma QRIS. Bentuknya harus
+/// Hanya `qrString` yang terisi selama saluran cuma QRIS. Bentuknya harus
 /// dianggap tak tepercaya: kalau tak dikenal, pemakaian jatuh ke
 /// [Tagihan.tautanBayar].
 class InstruksiBayar {
   const InstruksiBayar({
-    this.qrUrl,
+    this.qrString,
     this.kodeBayar,
     this.kodePerusahaan,
     this.aksi = const [],
   });
 
-  /// URL gambar kode QR yang ditampilkan aplikasi. Null kalau bukan QRIS.
-  final String? qrUrl;
+  /// Muatan QRIS mentah (`0002010102...`) yang digambar aplikasi sendiri.
+  ///
+  /// Sengaja string, bukan URL gambar: kode digambar di perangkat, sehingga
+  /// muatan QRIS tidak pernah singgah di layanan pihak ketiga. Null kalau
+  /// bukan QRIS.
+  final String? qrString;
 
   /// Nomor Virtual Account (saluran VA). Null selama bukan VA.
   final String? kodeBayar;
@@ -729,13 +758,14 @@ class Tagihan {
   const Tagihan({
     required this.id,
     required this.nomorInvoice,
+    required this.tipe,
     required this.durasi,
     required this.nominal,
     required this.saluran,
     required this.status,
     required this.dibuat,
     required this.batasBayar,
-    required this.berlakuSampai,
+    this.berlakuSampai,
     this.batasSaluran,
     this.instruksi,
     this.tautanBayar,
@@ -743,7 +773,14 @@ class Tagihan {
 
   final String id;
   final String nomorInvoice;
+
+  /// Tagihan langganan atau pembelian satuan konten Pustaka.
+  final TipeTagihan tipe;
+
+  /// Paket yang diperpanjang. Untuk tagihan Pustaka ini placeholder dari
+  /// server dan tidak boleh ditampilkan — pakai [tipe] untuk memutuskan.
   final DurasiPaket durasi;
+
   final int nominal;
   final SaluranBayar? saluran;
   final StatusBayar status;
@@ -759,7 +796,10 @@ class Tagihan {
   /// Tanggal berakhir langganan SETELAH tagihan ini lunas. Dihitung saat
   /// tagihan dibuat, bukan saat dibayar — supaya angka yang dijanjikan di
   /// layar pembayaran sama persis dengan yang didapat.
-  final DateTime berlakuSampai;
+  ///
+  /// Null untuk pembelian konten Pustaka: yang dibeli akses permanen, bukan
+  /// masa berlaku. Layar wajib memeriksa null sebelum menampilkannya.
+  final DateTime? berlakuSampai;
 
   /// Instrumen native (QR/VA/e-wallet) untuk digambar langsung di aplikasi.
   final InstruksiBayar? instruksi;
@@ -779,6 +819,7 @@ class Tagihan {
   Tagihan salin({StatusBayar? status}) => Tagihan(
     id: id,
     nomorInvoice: nomorInvoice,
+    tipe: tipe,
     durasi: durasi,
     nominal: nominal,
     saluran: saluran,

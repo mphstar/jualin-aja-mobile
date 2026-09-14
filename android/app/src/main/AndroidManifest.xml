@@ -6,11 +6,20 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Menyimpan gambar QRIS ke galeri. Sejak Android 10 (API 29) penyimpanan
+         lewat MediaStore tidak butuh izin apa pun, jadi izin lama ini dibatasi
+         hanya sampai API 29 — tanpa maxSdkVersion ia akan diminta di perangkat
+         baru yang sebenarnya tidak memerlukannya. -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
 
     <application
         android:label="JualinAja"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:enableOnBackInvokedCallback="true"
+        android:requestLegacyExternalStorage="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"

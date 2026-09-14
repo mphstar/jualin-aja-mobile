@@ -25,8 +25,8 @@ import 'screens/produk_screen.dart';
 import 'screens/pustaka_screen.dart';
 import 'screens/sambutan_screen.dart';
 import 'theme/app_theme.dart';
-import 'theme/tokens.dart';
 import 'widgets/app_shell.dart';
+import 'widgets/bilah_debug.dart';
 
 void main() {
   runZonedGuarded(
@@ -107,34 +107,7 @@ class _AplikasiPosState extends State<AplikasiPos> {
       themeMode: _mode,
       // Bilah penanda mode debug dipasang di bawah tema, jadi warnanya bisa
       // memakai `context.warna` dan selalu tampil di atas layar mana pun.
-      builder: (context, anak) => ValueListenableBuilder<bool>(
-        valueListenable: modeDebug,
-        builder: (context, debug, _) => debug
-            ? Column(
-                children: [
-                  Container(
-                    width: double.infinity,
-                    color: context.warna.error,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 3,
-                      horizontal: Jarak.xs,
-                    ),
-                    child: Text(
-                      'MODE DEBUG · BACKDOOR',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: context.warna.onError,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                  Expanded(child: anak!),
-                ],
-              )
-            : anak!,
-      ),
+      builder: (context, anak) => BilahDebug(anak: anak!),
       home: switch (_tahap) {
         _Tahap.memuat => const Scaffold(
           body: Center(child: CircularProgressIndicator()),

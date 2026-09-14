@@ -81,6 +81,22 @@ class _ProdukScreenState extends State<ProdukScreen> {
     final padding = paddingHalaman(context);
 
     return Bingkai<(List<Kategori>, List<Produk>)>(
+      // Akar tab, sama seperti Beranda dan Laporan.
+      bentukGalat: BentukGalat.halaman,
+      pembungkusGalat: (galat) => Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              padding.left,
+              padding.top,
+              padding.right,
+              0,
+            ),
+            child: const KepalaHalaman(judul: 'Produk'),
+          ),
+          Expanded(child: galat),
+        ],
+      ),
       ambil: () async {
         final k = await Repositori.kategori();
         final p = await Repositori.produk();

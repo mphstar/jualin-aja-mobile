@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>JualinAja menyimpan gambar kode QRIS ke galeri foto Anda supaya bisa dibuka lagi tanpa perlu screenshot.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>JualinAja menyimpan gambar kode QRIS ke galeri foto Anda supaya bisa dibuka lagi tanpa perlu screenshot.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

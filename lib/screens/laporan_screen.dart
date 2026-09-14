@@ -298,6 +298,9 @@ class _RingkasanState extends State<_Ringkasan> {
     final kunci =
         '$_modeFilter|${_customRange?.start.toIso8601String()}|${_customRange?.end.toIso8601String()}';
 
+    // Hanya isi laporannya yang dibungkus. Judul halaman, tab, dan pemilih
+    // periode sengaja tetap di luar: semuanya tetap terlihat saat isinya gagal
+    // dimuat, jadi layarnya tetap terbaca sebagai Laporan.
     return ListView(
       padding: EdgeInsets.fromLTRB(p.left, Jarak.sm, p.right, p.bottom),
       children: [
@@ -310,6 +313,7 @@ class _RingkasanState extends State<_Ringkasan> {
         const SizedBox(height: Jarak.sm),
         Bingkai<Laporan>(
           key: ValueKey(kunci),
+          bentukGalat: BentukGalat.halaman,
           ambil: () => Repositori.laporan(
             modeFilter: _modeFilter,
             customRange: _customRange,

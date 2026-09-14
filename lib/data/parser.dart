@@ -203,6 +203,12 @@ String durasiKeString(DurasiPaket d) => switch (d) {
 /// cara termurah untuk menguasai aplikasi.
 const _skemaDiizinkan = {'https', 'dana', 'gojek', 'shopeeid'};
 
+/// Instruksi bayar native dari backend, atau null kalau tidak ada yang dikenali.
+///
+/// Null bukan kegagalan: [Tagihan.tautanBayar] memang disediakan sebagai
+/// cadangan untuk instrumen yang tak dikenal — termasuk tagihan lama yang
+/// `instruksi_bayar`-nya masih berisi `qrUrl` dari sebelum kode QR digambar
+/// sendiri oleh aplikasi.
 InstruksiBayar? instruksiDariJson(dynamic j) {
   if (j is! Map<String, dynamic>) return null;
 
@@ -222,8 +228,8 @@ InstruksiBayar? instruksiDariJson(dynamic j) {
   }
 
   if (tipe == 'qr_code') {
-    final qrUrl = (j['qrUrl'] as String?)?.trim() ?? '';
-    return qrUrl.isEmpty ? null : InstruksiBayar(qrUrl: qrUrl);
+    final qrString = (j['qrString'] as String?)?.trim() ?? '';
+    return qrString.isEmpty ? null : InstruksiBayar(qrString: qrString);
   }
 
   return null;
@@ -238,6 +244,8 @@ String? _urlAman(String url) {
 Tagihan tagihanDariJson(Map<String, dynamic> j) => Tagihan(
   id: j['id'].toString(),
   nomorInvoice: j['nomorInvoice'] as String? ?? '',
+  // Server lama belum mengirim `tipe`; tagihan seperti itu memang langganan.
+  tipe: tipeTagihanDariKode(j['tipe'] as String?) ?? TipeTagihan.langganan,
   durasi: _durasiPaket(j['durasi'] as String?),
   nominal: _int(j['nominal']),
   saluran: saluranDariKode(j['saluran'] as String?),
@@ -245,7 +253,10 @@ Tagihan tagihanDariJson(Map<String, dynamic> j) => Tagihan(
   dibuat: _tanggal(j['dibuat']),
   batasBayar: _tanggal(j['batasBayar']),
   batasSaluran: j['batasSaluran'] is String ? _tanggal(j['batasSaluran']) : null,
-  berlakuSampai: _tanggal(j['berlakuSampai']),
+  // Null untuk pembelian konten Pustaka — bukan "berlaku sampai hari ini".
+  berlakuSampai: j['berlakuSampai'] is String
+      ? _tanggal(j['berlakuSampai'])
+      : null,
   instruksi: instruksiDariJson(j['instruksi']),
   tautanBayar: j['tautanBayar'] as String?,
 );

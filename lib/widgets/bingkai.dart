@@ -3,6 +3,19 @@ import 'package:flutter/material.dart';
 import '../data/repositori.dart';
 import 'keadaan.dart';
 
+/// Bentuk tampilan saat bingkai gagal memuat.
+enum BentukGalat {
+  /// Seluruh isi layar: halaman galat penuh, tanpa sisa isi tab mana pun.
+  /// Dipakai di akar tab.
+  halaman,
+
+  /// Kartu di tengah halaman. Untuk bingkai yang berdiri sendiri.
+  kartu,
+
+  /// Satu baris. Untuk bagian layar yang bersebelahan dengan bagian lain.
+  padat,
+}
+
 /// Pembungkus yang mengubah satu `Future` jadi **empat keadaan** di layar:
 /// memuat · kosong · galat · normal (PRD §8).
 ///
@@ -22,6 +35,8 @@ class Bingkai<T> extends StatefulWidget {
     required this.rangka,
     this.kosong,
     this.saatKosong,
+    this.bentukGalat = BentukGalat.kartu,
+    this.pembungkusGalat,
   });
 
   final Future<T> Function() ambil;
@@ -34,6 +49,29 @@ class Bingkai<T> extends StatefulWidget {
   /// Null berarti data ini tidak punya arti "kosong".
   final bool Function(T)? kosong;
   final Widget? saatKosong;
+
+  /// Bentuk tampilan saat gagal memuat.
+  ///
+  /// Satu layar bisa memuat beberapa bingkai — layar Akun memuat empat. Bentuk
+  /// kartu yang berulang ke bawah terbaca seperti sekian banyak masalah besar,
+  /// padahal penyebabnya satu. Karena itu pemanggil menyatakan sendiri
+  /// kedudukannya: akar tab memakai [BentukGalat.halaman] supaya seluruh
+  /// halaman diganti satu tampilan galat, bagian di dalam halaman memakai
+  /// [BentukGalat.padat], dan bingkai yang berdiri sendiri tetap
+  /// [BentukGalat.kartu].
+  final BentukGalat bentukGalat;
+
+  /// Kerangka halaman untuk keadaan galat — judul, tepi, saringan.
+  ///
+  /// Dipakai supaya kepala halaman tetap tampil saat isinya gagal dimuat.
+  /// Layar yang kehilangan judulnya terbaca seperti aplikasi yang rusak, bukan
+  /// seperti koneksi yang sedang bermasalah. Kerangkanya sengaja hanya
+  /// membungkus keadaan galat: keadaan memuat, kosong, dan siap sudah membawa
+  /// kerangkanya sendiri.
+  ///
+  /// Untuk bingkai yang isinya hiasan belaka, `(_) => const SizedBox.shrink()`
+  /// berarti "kalau gagal, tidak ada yang perlu dikatakan".
+  final Widget Function(Widget galat)? pembungkusGalat;
 
   @override
   State<Bingkai<T>> createState() => BingkaiState<T>();
@@ -100,14 +138,30 @@ class BingkaiState<T> extends State<Bingkai<T>> {
   Widget build(BuildContext context) {
     return switch (_muatan) {
       Memuat<T>() => widget.rangka,
-      Galat<T>(:final pesan) => Keadaan.galat(
-        pesan: pesan,
-        onCobaLagi: _muatUlang,
-      ),
+      Galat<T>(:final pesan) => _galat(pesan),
       Siap<T>(:final data) =>
         (widget.kosong?.call(data) ?? false) && widget.saatKosong != null
             ? widget.saatKosong!
             : widget.isi(context, data),
     };
+  }
+
+  /// Tampilan gagal, dengan kerangka halaman kalau pemanggil menyediakannya.
+  Widget _galat(String pesan) {
+    final galat = switch (widget.bentukGalat) {
+      BentukGalat.halaman => Keadaan.galatHalaman(
+        pesan: pesan,
+        onCobaLagi: _muatUlang,
+      ),
+      BentukGalat.kartu => Keadaan.galat(
+        pesan: pesan,
+        onCobaLagi: _muatUlang,
+      ),
+      BentukGalat.padat => Keadaan.galatPadat(
+        pesan: pesan,
+        onCobaLagi: _muatUlang,
+      ),
+    };
+    return widget.pembungkusGalat?.call(galat) ?? galat;
   }
 }

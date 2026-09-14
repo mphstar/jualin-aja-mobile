@@ -88,6 +88,9 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
         const SizedBox(height: Jarak.sm),
         Bingkai<List<Transaksi>>(
           key: ValueKey('$_cari|$_status'),
+          // Judul halaman dan tab-nya ada di luar (di layar Laporan), jadi
+          // yang diganti hanyalah daftarnya.
+          bentukGalat: BentukGalat.halaman,
           ambil: () => Repositori.riwayat(cari: _cari, status: _status),
           rangka: const RangkaDaftar(baris: 6),
           kosong: (d) => d.isEmpty,
@@ -137,6 +140,10 @@ class _PintasanPiutang extends StatelessWidget {
       // pernah muncul, dan rangka untuk sesuatu yang mungkin tidak ada justru
       // menjanjikan isi yang tidak datang.
       rangka: const SizedBox.shrink(),
+      // Sama alasannya saat gagal: baris pintasan tidak perlu mengumumkan apa
+      // pun. Kalau daftarnya memang tidak bisa dimuat, galatnya sudah tampil
+      // sebagai isi tab ini.
+      pembungkusGalat: (_) => const SizedBox.shrink(),
       kosong: (d) => d.isEmpty,
       saatKosong: const SizedBox.shrink(),
       isi: (context, daftar) => Padding(
