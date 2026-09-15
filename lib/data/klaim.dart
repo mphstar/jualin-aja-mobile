@@ -53,6 +53,16 @@ class RingkasanKlaim {
   int get jatahTerpakai =>
       bagian.where((b) => b.status == StatusJatah.terpakai).length;
 
+  /// Label jenis yang jatahnya masih tersedia, urut tetap: Resep, Prompt.
+  ///
+  /// Dipakai banner Pustaka supaya kalimatnya jujur ketika tinggal satu jenis
+  /// yang belum diklaim — "Resep & Prompt" untuk dua-duanya, "Prompt" saja
+  /// kalau jatah Resep sudah dipakai.
+  List<String> get labelTersedia => [
+    for (final b in bagian)
+      if (b.status == StatusJatah.tersedia) b.label,
+  ];
+
   /// Tidak ada lagi yang bisa diklaim — entah jatahnya habis, entah kontennya
   /// memang belum ada.
   bool get selesai => jatahTersedia == 0;
@@ -94,16 +104,17 @@ BagianKlaim _bagianUntuk(List<Ebook> daftar, JenisKonten jenis) {
   return BagianKlaim(jenis: jenis, bisaDiklaim: bisaDiklaim, status: status);
 }
 
-/// Apakah layar pembayaran harus mengalihkan pengguna ke layar klaim.
+/// Apakah layar pembayaran lunas harus menawarkan jalan ke layar klaim.
 ///
-/// Hanya tagihan **langganan** yang mengalihkan: tagihan Pustaka satuan
-/// membuka satu konten tertentu, bukan jatah klaim, dan pengalihannya justru
-/// akan menyesatkan.
+/// Hanya tagihan **langganan** yang menawarkannya: tagihan Pustaka satuan
+/// membuka satu konten tertentu, bukan jatah klaim, dan tawarannya justru akan
+/// menyesatkan.
 ///
-/// [sudahDiarahkan] wajib: status tagihan diperiksa berulang tiap beberapa
-/// detik, jadi tanpa penanda itu layar klaim akan ditumpuk berkali-kali.
-bool perluKeHalamanKlaim(Tagihan tagihan, {required bool sudahDiarahkan}) {
-  if (sudahDiarahkan) return false;
+/// Ini cuma menentukan apakah tombolnya DIGAMBAR — berpindah atau tidak tetap
+/// keputusan pengguna. Jatahnya sendiri hidup di server dan tidak ikut hangus
+/// kalau tombolnya tidak ditekan, jadi tidak ada lagi pengalihan otomatis yang
+/// harus dijaga dari pemeriksaan status berkala.
+bool tawarkanKlaim(Tagihan tagihan) {
   if (tagihan.tipe != TipeTagihan.langganan) return false;
 
   return tagihan.statusKini == StatusBayar.lunas;

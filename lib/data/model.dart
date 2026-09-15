@@ -399,6 +399,7 @@ class Ebook {
     this.terbuka = false,
     this.statusAkses = 'TERKUNCI',
     this.bisaKlaim = false,
+    this.jumlahUnduhan = 0,
   });
 
   final String id;
@@ -426,6 +427,15 @@ class Ebook {
 
   /// Apakah jatah klaim untuk jenis ini masih tersedia.
   final bool bisaKlaim;
+
+  /// Berapa kali konten ini dibuka, menurut server.
+  ///
+  /// Namanya `unduhan` mengikuti kolomnya di basis data, tapi yang dihitung
+  /// adalah BUKA: endpoint yang sama dipakai aplikasi untuk membuka/pratinjau.
+  /// Karena itu labelnya di layar harus "dibuka", bukan "diunduh".
+  ///
+  /// Nol berarti belum pernah ada yang membuka — bukan data yang tidak ada.
+  final int jumlahUnduhan;
 
   String get labelKategori => jenis == JenisKonten.prompt
       ? (kategoriPrompt ?? 'Prompt')

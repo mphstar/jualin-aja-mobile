@@ -50,11 +50,6 @@ class _StatusBayarScreenState extends State<StatusBayarScreen>
   String? _galat;
   Timer? _pemantauTimer;
 
-  /// Pengalihan ke layar klaim hanya boleh terjadi sekali. Status tagihan
-  /// diperiksa berulang tiap beberapa detik; tanpa penanda ini layar klaim
-  /// akan ditumpuk berkali-kali di atas dirinya sendiri.
-  bool _sudahDiarahkan = false;
-
   @override
   void initState() {
     super.initState();
@@ -104,50 +99,35 @@ class _StatusBayarScreenState extends State<StatusBayarScreen>
     try {
       final hasil = await Repositori.periksaTagihan(_tagihan);
       if (!mounted) return;
-
-      // Pengalihan menang atas pesan apa pun: kalau tagihannya lunas, layar ini
-      // memang akan ditinggalkan.
-      if (_terapkan(hasil, galat: _pesanBelumTerbayar(hasil))) return;
+      _terapkan(hasil, galat: _pesanBelumTerbayar(hasil));
     } on GagalMuat catch (e) {
       if (!mounted) return;
       setState(() => _galat = e.pesan);
     } finally {
-      // Selalu: pemintal tidak boleh terus berputar di layar yang sudah
-      // digantikan layar klaim.
       if (mounted) setState(() => _memeriksa = false);
     }
   }
 
-  /// Terapkan tagihan terbaru — dan alihkan ke layar klaim bila pembayaran
-  /// **langganannya** baru saja lunas.
+  /// Terapkan tagihan terbaru ke layar.
   ///
-  /// Pemeriksaannya ada di sini, bukan di tiap pemanggil: status tagihan
-  /// diperiksa dari dua jalur (pemantauan berkala dan tombol "Saya sudah
-  /// bayar"), dan aturan yang ditulis dua kali cepat atau lambat akan berbeda.
-  ///
-  /// Kembaliannya `true` kalau layar ini dialihkan; pemanggil tidak boleh
-  /// melanjutkan `setState` setelahnya.
-  bool _terapkan(Tagihan hasil, {String? galat}) {
-    // `isCurrent` menahan pengalihan yang menimpa layar lain yang kebetulan
-    // sedang di atas — mis. pratinjau PDF yang dibuka dari sini.
-    if (perluKeHalamanKlaim(hasil, sudahDiarahkan: _sudahDiarahkan) &&
-        ModalRoute.of(context)?.isCurrent == true) {
-      _sudahDiarahkan = true;
-
-      // `pushReplacement`, bukan `push`: layar ini sudah selesai tugasnya.
-      // Tombol kembali perangkat dari layar klaim harus mengembalikan ke
-      // langganan, bukan ke instruksi pembayaran yang sudah tidak berlaku.
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(builder: (_) => const KlaimPustakaScreen()),
-      );
-      return true;
-    }
-
+  /// Sengaja TIDAK mengalihkan ke layar klaim seperti dulu. Langganan lunas
+  /// adalah keadaan akhir yang layak dilihat: pengguna berhak tahu masa
+  /// aktifnya sampai kapan sebelum memutuskan mengklaim, dan jatah yang tidak
+  /// diklaim tidak hangus — banner Pustaka yang membawanya kembali ke sana.
+  void _terapkan(Tagihan hasil, {String? galat}) {
     setState(() {
       _tagihan = hasil;
       _galat = galat;
     });
-    return false;
+  }
+
+  /// Buka layar klaim lewat `push`, bukan `pushReplacement`: pengguna harus
+  /// bisa kembali ke layar selesai ini — entah untuk menutupnya, entah untuk
+  /// membiarkan jatahnya diklaim nanti dari Pustaka.
+  void _bukaKlaim(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const KlaimPustakaScreen()),
+    );
   }
 
   @override
@@ -238,10 +218,32 @@ class _StatusBayarScreenState extends State<StatusBayarScreen>
         ),
       ],
       StatusBayar.lunas => [
-        FilledButton(
-          onPressed: () => Navigator.of(context).maybePop(),
-          child: const Text('Selesai'),
-        ),
+        if (tawarkanKlaim(_tagihan)) ...[
+          FilledButton.icon(
+            onPressed: () => _bukaKlaim(context),
+            icon: const Icon(Icons.card_giftcard_rounded, size: 18),
+            label: const Text('Klaim jatah gratis'),
+          ),
+          const SizedBox(height: Jarak.xs2),
+          OutlinedButton(
+            onPressed: () => Navigator.of(context).maybePop(),
+            child: const Text('Selesai'),
+          ),
+          const SizedBox(height: Jarak.xs2),
+          Text(
+            'Belum mau memilih? Jatah klaimmu tidak hangus — bisa diklaim '
+            'kapan saja dari Pustaka.',
+            textAlign: TextAlign.center,
+            style: context.teks.bodySmall?.copyWith(
+              color: context.warna.onSurfaceVariant,
+              height: 1.4,
+            ),
+          ),
+        ] else
+          FilledButton(
+            onPressed: () => Navigator.of(context).maybePop(),
+            child: const Text('Selesai'),
+          ),
       ],
       StatusBayar.gagal || StatusBayar.kedaluwarsa => [
         FilledButton(

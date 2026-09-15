@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../data/klaim.dart';
 import '../data/model.dart';
+import '../data/populer.dart';
 import '../data/repositori.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
@@ -9,9 +11,11 @@ import '../widgets/app_shell.dart';
 import '../widgets/bingkai.dart';
 import '../widgets/kartu.dart';
 import '../widgets/keadaan.dart';
+import '../widgets/penanda_populer.dart';
 import '../widgets/rangka.dart';
 import '../widgets/sampul_ebook.dart';
 import 'baca_screen.dart';
+import 'klaim_pustaka_screen.dart';
 import 'status_bayar_screen.dart';
 
 /// Pustaka konten: resep dan prompt berbentuk PDF.
@@ -144,6 +148,19 @@ class _DaftarPustakaState extends State<_DaftarPustaka> {
   int get _terkunci =>
       widget.ebook.where((e) => e.statusAkses == 'TERKUNCI').length;
 
+  /// Buka layar klaim — jatah Resep dan Prompt dalam satu halaman.
+  ///
+  /// Ini jalan kembali yang membuat jatah tak terpakai tetap bisa diambil
+  /// setelah layar pembayaran ditinggalkan tanpa memilih.
+  Future<void> _bukaKlaim() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const KlaimPustakaScreen()),
+    );
+    // Daftar menyegar sendiri lewat `revisiData` begitu ada konten diklaim;
+    // panggilan ini menutup celah ketika layar klaim ditutup tanpa memilih.
+    widget.onRefresh?.call();
+  }
+
   void _aturUlang() {
     _kendaliCari.clear();
     setState(() {
@@ -156,6 +173,12 @@ class _DaftarPustakaState extends State<_DaftarPustaka> {
   Widget build(BuildContext context) {
     final terpilih = _saring(widget.ebook);
     final adaSaringan = _cari.trim().isNotEmpty || _jenis != null;
+    final jatah = ringkasanKlaim(widget.ebook);
+
+    // Dihitung dari daftar UTUH, bukan dari `terpilih`: lencana "Terpopuler"
+    // adalah fakta tentang katalog, dan menyaring dengan pencarian tidak boleh
+    // mengangkat konten yang sebenarnya bukan tiga teratas.
+    final populer = idTerpopuler(widget.ebook);
 
     return CustomScrollView(
       physics: const AlwaysScrollableScrollPhysics(
@@ -177,6 +200,14 @@ class _DaftarPustakaState extends State<_DaftarPustaka> {
                   judul: 'Pustaka',
                   keterangan: '${widget.ebook.length} konten tersedia.',
                 ),
+                if (jatah.jatahTersedia > 0) ...[
+                  const SizedBox(height: Jarak.xs2),
+                  _BannerKlaim(
+                    jumlah: jatah.jatahTersedia,
+                    labelJenis: jatah.labelTersedia,
+                    onKlaim: _bukaKlaim,
+                  ),
+                ],
                 if (_terbuka > 0 || _bisaKlaim > 0) ...[
                   const SizedBox(height: Jarak.xs2),
                   _RingkasanAkses(
@@ -247,7 +278,11 @@ class _DaftarPustakaState extends State<_DaftarPustaka> {
                     maxCrossAxisExtent: 420,
                     mainAxisSpacing: Jarak.xs,
                     crossAxisSpacing: Jarak.xs,
-                    mainAxisExtent: 208,
+                    // Tinggi ini menampung baris penanda "Terpopuler" di
+                    // samping baris meta yang sudah ada. Layar 320 px membuat
+                    // lencananya turun satu baris, dan tanpa ruang tambahan
+                    // deskripsinya yang terdorong keluar kartu.
+                    mainAxisExtent: 232,
                   ),
                   itemCount: terpilih.length,
                   itemBuilder: (context, i) => _KartuKonten(
@@ -256,6 +291,7 @@ class _DaftarPustakaState extends State<_DaftarPustaka> {
                     // ke konten lain dan penjaga tap-nya ikut salah sasaran.
                     key: ValueKey(terpilih[i].id),
                     ebook: terpilih[i],
+                    populer: populer.contains(terpilih[i].id),
                     onBerubah: widget.onRefresh,
                   ),
                 ),
@@ -329,6 +365,79 @@ class _CipAkses extends StatelessWidget {
               fontWeight: FontWeight.w600,
               color: warna,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Ajakan klaim jatah langganan
+// ---------------------------------------------------------------------------
+
+/// Ajakan mengklaim jatah langganan yang belum dipakai.
+///
+/// Satu-satunya jalan kembali ke layar klaim setelah layar pembayaran
+/// ditinggalkan tanpa memilih. Tanpa ini, jatah yang tidak diklaim saat
+/// pembayaran hanya bisa dijangkau lewat kartu konten satu per satu — padahal
+/// jatahnya per JENIS, bukan per konten.
+///
+/// Hanya digambar saat memang ada jatah tersisa; sisa jatah itu sendiri yang
+/// menentukan, jadi tidak ada dua sumber kebenaran yang bisa berbeda.
+class _BannerKlaim extends StatelessWidget {
+  const _BannerKlaim({
+    required this.jumlah,
+    required this.labelJenis,
+    required this.onKlaim,
+  });
+
+  final int jumlah;
+
+  /// Jenis yang jatahnya masih tersedia, urut tetap: Resep, Prompt.
+  final List<String> labelJenis;
+
+  final VoidCallback onKlaim;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = context.aksen;
+
+    return Container(
+      padding: const EdgeInsets.all(Jarak.xs),
+      decoration: BoxDecoration(
+        color: a.infoLembut,
+        borderRadius: BorderRadius.circular(Lengkung.kontrol),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.card_giftcard_rounded, size: 22, color: a.info),
+          const SizedBox(width: Jarak.xs2),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$jumlah klaim gratis tersisa',
+                  style: context.teks.titleSmall?.copyWith(color: a.info),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Jatah ${labelJenis.join(' & ')} belum dipakai — klaim '
+                  'kapan saja, tidak hangus.',
+                  style: context.teks.bodySmall?.copyWith(
+                    color: context.warna.onSurfaceVariant,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: Jarak.xs2),
+          FilledButton(
+            onPressed: onKlaim,
+            style: _gayaTombol,
+            child: const Text('Klaim'),
           ),
         ],
       ),
@@ -519,7 +628,9 @@ class _RangkaPustaka extends StatelessWidget {
               maxCrossAxisExtent: 420,
               mainAxisSpacing: Jarak.xs,
               crossAxisSpacing: Jarak.xs,
-              mainAxisExtent: 208,
+              // Sama dengan grid isinya: kalau berbeda, kartu asli menggeser
+              // tata letak begitu rangka berganti isi.
+              mainAxisExtent: 232,
             ),
             itemCount: 6,
             itemBuilder: (context, i) => const _RangkaKartuPustaka(),
@@ -584,9 +695,19 @@ final _gayaTombol = ButtonStyle(
 );
 
 class _KartuKonten extends StatefulWidget {
-  const _KartuKonten({super.key, required this.ebook, this.onBerubah});
+  const _KartuKonten({
+    super.key,
+    required this.ebook,
+    this.populer = false,
+    this.onBerubah,
+  });
 
   final Ebook ebook;
+
+  /// Menyandang lencana "Terpopuler" — diputuskan sekali untuk seluruh daftar
+  /// oleh `idTerpopuler`, bukan per kartu.
+  final bool populer;
+
   final VoidCallback? onBerubah;
 
   @override
@@ -728,7 +849,12 @@ class _KartuKontenState extends State<_KartuKonten> {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 5),
+                    PenandaPopuler(
+                      jumlahUnduhan: ebook.jumlahUnduhan,
+                      populer: widget.populer,
+                    ),
+                    const SizedBox(height: 4),
                     Text(
                       '${ebook.labelKategori} · ${ebook.jumlahHalaman} hal · '
                       '${ebook.ukuranMb.toStringAsFixed(1)} MB',

@@ -285,6 +285,7 @@ Ebook ebookDariJson(Map<String, dynamic> j) {
     terbuka: _bool(j['terbuka']),
     statusAkses: j['statusAkses'] as String? ?? 'TERKUNCI',
     bisaKlaim: _bool(j['bisaKlaim']),
+    jumlahUnduhan: _int(j['jumlahUnduhan']),
   );
 }
 

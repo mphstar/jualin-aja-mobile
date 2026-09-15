@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/klaim.dart';
 import '../data/model.dart';
+import '../data/populer.dart';
 import '../data/repositori.dart';
 import '../theme/app_theme.dart';
 import '../theme/tokens.dart';
@@ -9,16 +10,19 @@ import '../widgets/app_shell.dart';
 import '../widgets/bingkai.dart';
 import '../widgets/kartu.dart';
 import '../widgets/keadaan.dart';
+import '../widgets/penanda_populer.dart';
 import '../widgets/rangka.dart';
 import '../widgets/sampul_ebook.dart';
 import 'baca_screen.dart';
 
 /// Klaim jatah langganan — satu Resep dan satu Prompt gratis per siklus.
 ///
-/// Dibuka otomatis oleh `StatusBayarScreen` begitu pembayaran langganan
-/// terdeteksi lunas, supaya pengguna tidak perlu mencari Pustaka sendiri.
-/// Isinya dua bagian tetap, Resep lalu Prompt, dan tiap bagian hanya
-/// menampilkan konten yang jatahnya masih tersedia.
+/// Dijangkau dari dua tempat: tombol di layar pembayaran yang baru lunas, dan
+/// banner Pustaka untuk jatah yang dulu tidak dipakai. Sengaja **tidak**
+/// dibuka otomatis — jatahnya hidup di server dan tidak hangus, jadi memaksa
+/// berpindah hanya membuat pengguna melewatinya tanpa sempat melihat masa
+/// aktif langganannya. Isinya dua bagian tetap, Resep lalu Prompt, dan tiap
+/// bagian hanya menampilkan konten yang jatahnya masih tersedia.
 ///
 /// Daftarnya menyegar sendiri setelah klaim: `Repositori.klaimPustaka`
 /// menaikkan `revisiData`, dan `Bingkai` mendengarkannya. Tidak ada satu baris
@@ -135,12 +139,18 @@ class _IsiState extends State<_Isi> {
   Widget build(BuildContext context) {
     final ringkasan = ringkasanKlaim(widget.daftar);
 
+    // Dari katalog UTUH, bukan dari yang bisa diklaim saja: pemenang
+    // "Terpopuler" ditentukan seluruh katalog, dan menghitungnya dari daftar
+    // yang sudah disaring jatah akan mengangkat konten yang bukan tiga teratas.
+    final populer = idTerpopuler(widget.daftar);
+
     return ListView(
       padding: widget.padding,
       children: [
         Text(
           'Langgananmu aktif. Pilih satu Resep dan satu Prompt untuk dibuka '
-          'gratis — jatahnya diperbarui setiap kali langganan diperpanjang.',
+          'gratis. Belum mau memilih sekarang? Jatahnya tidak hangus — bisa '
+          'diklaim kapan saja dari Pustaka.',
           style: context.teks.bodyMedium?.copyWith(
             color: context.warna.onSurfaceVariant,
             height: 1.5,
@@ -170,6 +180,7 @@ class _IsiState extends State<_Isi> {
             _Bagian(
               bagian: bagian,
               sedangKlaim: _sedangKlaim,
+              populer: populer,
               onKlaim: _klaim,
             ),
             const SizedBox(height: Jarak.md),
@@ -192,11 +203,17 @@ class _Bagian extends StatelessWidget {
   const _Bagian({
     required this.bagian,
     required this.sedangKlaim,
+    required this.populer,
     required this.onKlaim,
   });
 
   final BagianKlaim bagian;
   final String? sedangKlaim;
+
+  /// Id konten yang menyandang lencana "Terpopuler" — diputuskan sekali untuk
+  /// seluruh katalog, bukan per bagian.
+  final Set<String> populer;
+
   final Future<void> Function(Ebook) onKlaim;
 
   @override
@@ -228,6 +245,7 @@ class _Bagian extends StatelessWidget {
                 child: _KartuKlaim(
                   ebook: ebook,
                   memproses: sedangKlaim == ebook.id,
+                  populer: populer.contains(ebook.id),
                   onKlaim: () => onKlaim(ebook),
                 ),
               ),
@@ -277,11 +295,13 @@ class _KartuKlaim extends StatelessWidget {
   const _KartuKlaim({
     required this.ebook,
     required this.memproses,
+    required this.populer,
     required this.onKlaim,
   });
 
   final Ebook ebook;
   final bool memproses;
+  final bool populer;
   final VoidCallback onKlaim;
 
   @override
@@ -314,7 +334,12 @@ class _KartuKlaim extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 5),
+                  PenandaPopuler(
+                    jumlahUnduhan: ebook.jumlahUnduhan,
+                    populer: populer,
+                  ),
+                  const SizedBox(height: 4),
                   Text(
                     '${ebook.labelKategori} · ${ebook.jumlahHalaman} hal',
                     style: context.teks.bodySmall?.copyWith(

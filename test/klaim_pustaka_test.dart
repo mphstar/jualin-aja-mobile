@@ -104,64 +104,66 @@ void main() {
       expect(hasil.jatahTersedia, 1);
       expect(hasil.selesai, isFalse);
     });
+
+    test('label jenis tersisa hanya menyebut jatah yang belum dipakai', () {
+      // Banner Pustaka memakai ini untuk kalimatnya. Menyebut "Resep & Prompt"
+      // padahal Resep-nya sudah dipakai berarti mengundang orang mengklaim
+      // sesuatu yang tidak ada.
+      final hasil = ringkasanKlaim([
+        _ebook(id: '1', statusAkses: 'TERBUKA'),
+        _ebook(id: '2', jenis: JenisKonten.prompt, statusAkses: 'BISA_KLAIM'),
+      ]);
+
+      expect(hasil.labelTersedia, ['Prompt']);
+    });
+
+    test('dua-duanya tersisa berarti keduanya disebut', () {
+      final hasil = ringkasanKlaim([
+        _ebook(id: '1', statusAkses: 'BISA_KLAIM'),
+        _ebook(id: '2', jenis: JenisKonten.prompt, statusAkses: 'BISA_KLAIM'),
+      ]);
+
+      expect(hasil.labelTersedia, ['Resep', 'Prompt']);
+    });
   });
 
-  group('perluKeHalamanKlaim', () {
-    test('tagihan langganan yang lunas mengalihkan', () {
-      expect(
-        perluKeHalamanKlaim(_tagihan(), sudahDiarahkan: false),
-        isTrue,
-      );
+  group('tawarkanKlaim', () {
+    test('tagihan langganan yang lunas menawarkan klaim', () {
+      expect(tawarkanKlaim(_tagihan()), isTrue);
     });
 
-    test('yang sudah pernah dialihkan tidak dialihkan lagi', () {
-      // Status tagihan diperiksa tiap beberapa detik; tanpa penanda ini layar
-      // klaim akan ditumpuk berkali-kali.
+    test('tagihan Pustaka satuan tidak pernah menawarkan klaim', () {
+      // Yang dibelinya satu konten tertentu, bukan jatah klaim — menawarkan
+      // klaim di situ justru menyesatkan.
       expect(
-        perluKeHalamanKlaim(_tagihan(), sudahDiarahkan: true),
+        tawarkanKlaim(_tagihan(tipe: TipeTagihan.pustakaSatuan)),
         isFalse,
       );
     });
 
-    test('tagihan Pustaka satuan tidak pernah mengalihkan', () {
-      // Yang dibelinya satu konten tertentu, bukan jatah klaim — mengalihkan
-      // ke layar klaim justru menyesatkan.
-      expect(
-        perluKeHalamanKlaim(
-          _tagihan(tipe: TipeTagihan.pustakaSatuan),
-          sudahDiarahkan: false,
-        ),
-        isFalse,
-      );
-    });
-
-    test('tagihan yang belum lunas tidak mengalihkan', () {
+    test('tagihan yang belum lunas tidak menawarkan klaim', () {
       for (final status in [
         StatusBayar.menunggu,
         StatusBayar.gagal,
         StatusBayar.kedaluwarsa,
       ]) {
         expect(
-          perluKeHalamanKlaim(
-            _tagihan(status: status),
-            sudahDiarahkan: false,
-          ),
+          tawarkanKlaim(_tagihan(status: status)),
           isFalse,
-          reason: 'status $status seharusnya tidak mengalihkan',
+          reason: 'status $status seharusnya tidak menawarkan klaim',
         );
       }
     });
 
-    test('tagihan menunggu yang lewat batas terbaca kedaluwarsa', () {
+    test('tagihan menunggu yang lewat batas tidak menawarkan klaim', () {
       // `statusKini` yang dipakai, bukan `status` mentah — tagihan yang lewat
       // batas tapi masih tercatat menunggu adalah tagihan yang berbohong.
       expect(
-        perluKeHalamanKlaim(
+        tawarkanKlaim(
           _tagihan(
             status: StatusBayar.menunggu,
             batasBayar: DateTime(2020, 1, 1),
           ),
-          sudahDiarahkan: false,
         ),
         isFalse,
       );
